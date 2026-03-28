@@ -1,6 +1,6 @@
 -- ╔══════════════════════════════════════════════╗
--- ║      Blade Ball Dashboard  v8.0              ║
--- ║  Fixed Parry · Fixed Move · Mobile           ║
+-- ║      Blade Ball Dashboard  v8.2              ║
+-- ║  Improved · Smooth Movement · Safe Zones     ║
 -- ╚══════════════════════════════════════════════╝
 
 local Players          = game:GetService("Players")
@@ -9,6 +9,7 @@ local UserInputService = game:GetService("UserInputService")
 local TweenService     = game:GetService("TweenService")
 local Lighting         = game:GetService("Lighting")
 local RS               = game:GetService("ReplicatedStorage")
+local Workspace        = game:GetService("Workspace")
 
 repeat task.wait() until Players.LocalPlayer
 local LP = Players.LocalPlayer
@@ -16,7 +17,7 @@ local LP = Players.LocalPlayer
 -- حذف نسخ قديمة
 pcall(function()
     for _, g in ipairs({game:GetService("CoreGui"), LP:WaitForChild("PlayerGui")}) do
-        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_Dashboard","BladeBallDash"}) do
+        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v8.1","BB_v8.2","BB_Dashboard","BladeBallDash"}) do
             local old = g:FindFirstChild(n)
             if old then old:Destroy() end
         end
@@ -26,10 +27,10 @@ end)
 -- ══════════════════════════════════════════════
 -- REMOTES الصحيحة لـ Blade Ball
 -- ══════════════════════════════════════════════
-local Remotes   = RS:WaitForChild("Remotes", 10)
+local Remotes   = RS:FindFirstChild("Remotes") or RS:WaitForChild("Remotes", 10)
 local ParryRE   = Remotes and Remotes:FindFirstChild("ParryButtonPress")
 local AbilityRE = Remotes and Remotes:FindFirstChild("AbilityButtonPress")
-local Balls     = workspace:WaitForChild("Balls", 10)
+local Balls     = Workspace:FindFirstChild("Balls") or Workspace:WaitForChild("Balls", 10)
 
 -- ══════════════════════════════════════════════
 -- SETTINGS
@@ -43,6 +44,7 @@ local CFG = {
     RandomMove   = false,
     MoveInterval = 0.4,
     AntiLag      = false,
+    SmoothParry  = true,  -- جديد: حركة صد سلسة
 }
 
 local C = {
@@ -57,10 +59,121 @@ local C = {
 }
 
 -- ══════════════════════════════════════════════
+-- متغيرات عالمية للتحكم بالحركة
+-- ══════════════════════════════════════════════
+local currentWalkTarget = nil
+local isMoving = false
+local lastManualMove = 0
+local isInGameCache = false
+local lastGameCheck = 0
+
+-- ══════════════════════════════════════════════
+-- تحسين: أسماء المناطق المختلفة
+-- ══════════════════════════════════════════════
+local ArenaNames = {"Map", "Arena", "GameArea", "BattleArena", "Spawn", "GameTimer"}
+local LobbyNames = {"Lobby", "WaitingRoom", "SpawnLocation", "Hub"}
+
+-- ══════════════════════════════════════════════
+-- دالة محسنة للتحقق من وجود اللاعب في الساحة
+-- ══════════════════════════════════════════════
+local function IsInGame()
+    -- تحديث كل 0.5 ثانية فقط لتوفير الأداء
+    local now = tick()
+    if now - lastGameCheck < 0.5 then
+        return isInGameCache
+    end
+    lastGameCheck = now
+    
+    -- التحقق من وجود أي من أسماء الساحة
+    for _, name in ipairs(ArenaNames) do
+        if Workspace:FindFirstChild(name) then
+            isInGameCache = true
+            return true
+        end
+    end
+    
+    -- التحقق من وجود الكرة في الساحة (علامة قوية)
+    if Balls and #Balls:GetChildren() > 0 then
+        isInGameCache = true
+        return true
+    end
+    
+    -- التحقق من وجود لاعبين آخرين في المنطقة
+    local char = LP.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local hrp = char.HumanoidRootPart
+        local nearbyPlayers = 0
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LP and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local dist = (hrp.Position - player.Character.HumanoidRootPart.Position).Magnitude
+                if dist < 100 then
+                    nearbyPlayers = nearbyPlayers + 1
+                end
+            end
+        end
+        if nearbyPlayers > 0 then
+            isInGameCache = true
+            return true
+        end
+    end
+    
+    isInGameCache = false
+    return false
+end
+
+-- ══════════════════════════════════════════════
+-- دالة محسنة للتحقق مما إذا كانت الكرة تستهدف اللاعب
+-- ══════════════════════════════════════════════
+local function IsBallTargetingMe()
+    local char = LP.Character
+    if not char then return false end
+    
+    -- الطريقة الأساسية: التحقق من Highlight
+    if char:FindFirstChild("Highlight") then
+        return true
+    end
+    
+    -- طريقة احتياطية: التحقق من وجود كرة متجهة نحوي
+    if Balls then
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            for _, ball in ipairs(Balls:GetChildren()) do
+                if ball:IsA("BasePart") and ball:GetAttribute("realBall") == true then
+                    -- التحقق من اتجاه الكرة
+                    local vel = ball.AssemblyLinearVelocity
+                    local dirToPlayer = (hrp.Position - ball.Position).Unit
+                    local velDir = vel.Unit
+                    local dot = dirToPlayer:Dot(velDir)
+                    
+                    -- إذا كانت الكرة تتجه نحوي بزاوية أقل من 30 درجة
+                    if dot > 0.86 then  -- cos(30°)
+                        return true
+                    end
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- ══════════════════════════════════════════════
+-- دالة لإيقاف الحركة فوراً
+-- ══════════════════════════════════════════════
+local function StopMovement(hum)
+    if hum and hum:IsA("Humanoid") then
+        hum:MoveTo(hum.Parent and hum.Parent:FindFirstChild("HumanoidRootPart") and hum.Parent.HumanoidRootPart.Position or hum.Parent.PrimaryPart.Position)
+        hum:Move(Vector3.new(0,0,0))
+        isMoving = false
+        currentWalkTarget = nil
+    end
+end
+
+-- ══════════════════════════════════════════════
 -- GUI ROOT
 -- ══════════════════════════════════════════════
 local SG = Instance.new("ScreenGui")
-SG.Name = "BB_v8"; SG.ResetOnSpawn = false
+SG.Name = "BB_v8.2"; SG.ResetOnSpawn = false
 SG.DisplayOrder = 999; SG.IgnoreGuiInset = true
 
 local ok = pcall(function() SG.Parent = game:GetService("CoreGui") end)
@@ -106,7 +219,7 @@ TitleL.Size = UDim2.new(1,-50,0,22); TitleL.Position = UDim2.new(0,12,0,5)
 TitleL.TextXAlignment = Enum.TextXAlignment.Left; TitleL.ZIndex = 7; TitleL.Parent = Header
 
 local SubL = Instance.new("TextLabel")
-SubL.Text = "v8.0  •  Mobile"; SubL.Font = Enum.Font.Gotham; SubL.TextSize = 9
+SubL.Text = "v8.2  •  Improved"; SubL.Font = Enum.Font.Gotham; SubL.TextSize = 9
 SubL.TextColor3 = C.Muted; SubL.BackgroundTransparency = 1
 SubL.Size = UDim2.new(1,-50,0,13); SubL.Position = UDim2.new(0,12,0,27)
 SubL.TextXAlignment = Enum.TextXAlignment.Left; SubL.ZIndex = 7; SubL.Parent = Header
@@ -246,7 +359,6 @@ local function Toggle(p, title, desc, o, cb)
         if cb then cb(v) end
     end
 
-    -- الإصلاح: تسجيل موضع البداية والتحقق من المسافة عند الرفع
     local sp = nil
     row.InputBegan:Connect(function(i)
         if i.UserInputType == Enum.UserInputType.MouseButton1
@@ -332,12 +444,28 @@ sLbl.TextColor3 = C.Muted; sLbl.BackgroundTransparency = 1
 sLbl.Size = UDim2.new(1,-24,1,0); sLbl.Position = UDim2.new(0,22,0,0)
 sLbl.TextXAlignment = Enum.TextXAlignment.Left; sLbl.ZIndex = 9; sLbl.Parent = sRow
 
+local locationRow = Row(P1,28,2)
+local locationDot = Instance.new("Frame")
+locationDot.Size = UDim2.new(0,8,0,8); locationDot.Position = UDim2.new(0,10,0.5,-4)
+locationDot.BackgroundColor3 = C.Yellow; locationDot.BorderSizePixel = 0; locationDot.ZIndex = 9; locationDot.Parent = locationRow
+Instance.new("UICorner",locationDot).CornerRadius = UDim.new(1,0)
+local locationLbl = Instance.new("TextLabel")
+locationLbl.Text = "المكان: اللوبي"; locationLbl.Font = Enum.Font.Gotham; locationLbl.TextSize = 10
+locationLbl.TextColor3 = C.Muted; locationLbl.BackgroundTransparency = 1
+locationLbl.Size = UDim2.new(1,-24,1,0); lLbl.Position = UDim2.new(0,22,0,0)
+locationLbl.TextXAlignment = Enum.TextXAlignment.Left; locationLbl.ZIndex = 9; locationLbl.Parent = locationRow
+
 local function SetStatus(msg, col)
     sLbl.Text = "الوضع: "..msg
     sDot.BackgroundColor3 = col or C.Muted
 end
 
-local fRow = Row(P1,30,2)
+local function SetLocation(msg, col)
+    locationLbl.Text = "المكان: "..msg
+    locationDot.BackgroundColor3 = col or C.Yellow
+end
+
+local fRow = Row(P1,30,3)
 local fLbl = Instance.new("TextLabel")
 fLbl.Text = "⚡ FPS: --"; fLbl.Font = Enum.Font.GothamBold; fLbl.TextSize = 12
 fLbl.TextColor3 = C.Accent; fLbl.BackgroundTransparency = 1
@@ -345,7 +473,7 @@ fLbl.Size = UDim2.new(1,0,1,0); fLbl.TextXAlignment = Enum.TextXAlignment.Center
 fLbl.ZIndex = 9; fLbl.Parent = fRow
 
 -- Remote status
-local rRow = Row(P1,28,3)
+local rRow = Row(P1,28,4)
 local rLbl = Instance.new("TextLabel")
 rLbl.Font = Enum.Font.Gotham; rLbl.TextSize = 9; rLbl.BackgroundTransparency = 1
 rLbl.Size = UDim2.new(1,-8,1,0); rLbl.Position = UDim2.new(0,4,0,0)
@@ -356,14 +484,14 @@ else
     rLbl.Text = "❌ Parry: غير موجود"; rLbl.TextColor3 = C.Red
 end
 
-SLbl(P1, "  ── الصد والقدرات ──", 4)
+SLbl(P1, "  ── الصد والقدرات ──", 5)
 
-Toggle(P1, "🛡  Auto Parry", "يصد فوراً عندما تستهدفك الكرة", 5, function(on)
+Toggle(P1, "🛡  Auto Parry", "يصد فوراً عندما تستهدفك الكرة", 6, function(on)
     CFG.AutoParry = on
     SetStatus(on and "Auto Parry ✅" or "خامل", on and C.Green or nil)
 end)
 
-Toggle(P1, "✨  Auto Ability", "يستخدم القدرة عندما تستهدفك الكرة", 6, function(on)
+Toggle(P1, "✨  Auto Ability", "يستخدم القدرة عندما تستهدفك الكرة", 7, function(on)
     CFG.AutoAbility = on
     SetStatus(on and "Auto Ability ✨" or "خامل", on and C.Yellow or nil)
 end)
@@ -373,8 +501,14 @@ end)
 -- ══════════════════════════════════════════════
 SLbl(P2, "  ── القفز والمشي ──", 1)
 
-Toggle(P2, "🦘  قفز تلقائي", "يقفز تلقائياً بشكل متكرر", 2, function(on)
+Toggle(P2, "🦘  قفز تلقائي", "يقفز تلقائياً بشكل متكرر (يعمل في كل مكان)", 2, function(on)
     CFG.AutoJump = on
+    if not on then
+        local char = LP.Character
+        if char and char:FindFirstChild("Humanoid") then
+            char.Humanoid.JumpPower = 50
+        end
+    end
     SetStatus(on and "قفز تلقائي 🦘" or "خامل", on and C.Yellow or nil)
 end)
 
@@ -382,23 +516,39 @@ Slider(P2, "⏱  فترة القفز", 300, 3000, 1000, " ms", 3, function(v)
     CFG.JumpInterval = v / 1000
 end)
 
-Toggle(P2, "🚶  مشي تلقائي", "يتحرك تلقائياً بين الزوايا", 4, function(on)
+Toggle(P2, "🚶  مشي تلقائي", "يتحرك تلقائياً بين الزوايا (فقط داخل الساحة)", 4, function(on)
     CFG.AutoWalk = on
+    if not on then
+        local char = LP.Character
+        if char and char:FindFirstChild("Humanoid") then
+            StopMovement(char.Humanoid)
+        end
+    end
     SetStatus(on and "مشي تلقائي 🚶" or "خامل", on and C.Accent or nil)
 end)
 
 SLbl(P2, "  ── حركة عشوائية ──", 5)
 
-Toggle(P2, "🎲  حركة عشوائية", "يتحرك عشوائياً لتجنب الكرة", 6, function(on)
+Toggle(P2, "🎲  حركة عشوائية", "يتحرك عشوائياً لتجنب الكرة (فقط داخل الساحة)", 6, function(on)
     CFG.RandomMove = on
+    if not on then
+        local char = LP.Character
+        if char and char:FindFirstChild("Humanoid") then
+            StopMovement(char.Humanoid)
+        end
+    end
 end)
 
 Slider(P2, "🔄  سرعة التغيير", 1, 10, 4, "x", 7, function(v)
     CFG.MoveInterval = 1 / v
 end)
 
+Toggle(P2, "🎯  حركة صد سلسة", "حركة سلسة أثناء الصد (أقل اكتشافاً)", 8, function(on)
+    CFG.SmoothParry = on
+end)
+
 -- ══════════════════════════════════════════════
--- TAB 3 — أداء
+-- TAB 3 — أداء (محسن)
 -- ══════════════════════════════════════════════
 SLbl(P3, "  ── تحسين الأداء ──", 1)
 
@@ -409,270 +559,46 @@ pfLbl.TextColor3 = C.Accent; pfLbl.BackgroundTransparency = 1
 pfLbl.Size = UDim2.new(1,0,1,0); pfLbl.TextXAlignment = Enum.TextXAlignment.Center
 pfLbl.ZIndex = 9; pfLbl.Parent = pfRow
 
-Toggle(P3, "⚡  Super Anti-Lag", "يحذف كل التأثيرات لرفع الـ FPS", 3, function(on)
+-- متغير لتتبع حالة Anti-Lag لتجنب التكرار
+local antiLagActive = false
+
+Toggle(P3, "⚡  Super Anti-Lag", "يزيل المؤثرات لرفع الـ FPS (محسن)", 3, function(on)
     CFG.AntiLag = on
+    antiLagActive = on
+    
     pcall(function()
+        -- تحسين الأداء: تجنب إعادة تعيين الأشياء التي لم تتغير
         Lighting.GlobalShadows = not on
-        Lighting.FogEnd        = on and 9e8 or 100000
-        Lighting.FogStart      = on and 9e8 or 0
-        Lighting.Brightness    = on and 2 or 1
+        
+        if on then
+            Lighting.FogEnd = 9e8
+            Lighting.FogStart = 9e8
+            Lighting.Brightness = 2
+        else
+            Lighting.FogEnd = 100000
+            Lighting.FogStart = 0
+            Lighting.Brightness = 1
+        end
+        
+        -- تحسين: اقتصار التأثير على المؤثرات البصرية فقط
         for _, v in ipairs(Lighting:GetChildren()) do
             pcall(function()
-                if v:IsA("PostEffect") then v.Enabled = false end
-            end)
-        end
-        for _, v in ipairs(workspace:GetDescendants()) do
-            pcall(function()
-                if v:IsA("ParticleEmitter") or v:IsA("Trail")
-                or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
+                if v:IsA("PostEffect") then
                     v.Enabled = not on
                 end
-                if v:IsA("PostEffect") or v:IsA("BlurEffect")
-                or v:IsA("ColorCorrectionEffect") or v:IsA("SunRaysEffect")
-                or v:IsA("BloomEffect") then
-                    v.Enabled = not on
-                end
-                if on and v:IsA("BasePart") then
-                    v.CastShadow = false
-                end
             end)
         end
-        if on then
-            pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
-        end
-    end)
-    SetStatus(on and "Anti-Lag ⚡" or "خامل", on and C.Yellow or nil)
-end)
-
--- ══════════════════════════════════════════════
--- TAB 4 — سجل
--- ══════════════════════════════════════════════
-local logScroll = Instance.new("ScrollingFrame")
-logScroll.Size = UDim2.new(1,0,1,-38); logScroll.BackgroundColor3 = C.Card
-logScroll.BorderSizePixel = 0; logScroll.ScrollBarThickness = 2
-logScroll.ScrollBarImageColor3 = C.Accent
-logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-logScroll.CanvasSize = UDim2.new(0,0,0,0)
-logScroll.LayoutOrder = 1; logScroll.ZIndex = 8; logScroll.Parent = P4
-Instance.new("UICorner", logScroll).CornerRadius = UDim.new(0,9)
-
-local logList = {}
-local function Log(msg, col)
-    table.insert(logList, 1, {t=os.date("%H:%M:%S").."  "..msg, c=col or C.Text})
-    if #logList > 50 then table.remove(logList) end
-    for _, ch in ipairs(logScroll:GetChildren()) do
-        if ch:IsA("TextLabel") then ch:Destroy() end
-    end
-    for i, e in ipairs(logList) do
-        local l = Instance.new("TextLabel")
-        l.Text = e.t; l.Font = Enum.Font.Code; l.TextSize = 9
-        l.TextColor3 = e.c; l.BackgroundTransparency = 1
-        l.Size = UDim2.new(1,-6,0,14); l.Position = UDim2.new(0,3,0,(i-1)*15)
-        l.TextXAlignment = Enum.TextXAlignment.Left
-        l.TextTruncate = Enum.TextTruncate.AtEnd; l.ZIndex = 9; l.Parent = logScroll
-    end
-    logScroll.CanvasSize = UDim2.new(0,0,0,#logList*15+4)
-end
-
-local clrBtn = Instance.new("TextButton")
-clrBtn.Text = "🗑  مسح"; clrBtn.Font = Enum.Font.GothamBold; clrBtn.TextSize = 11
-clrBtn.TextColor3 = C.Text; clrBtn.BackgroundColor3 = Color3.fromRGB(25,25,40)
-clrBtn.Size = UDim2.new(1,0,0,30); clrBtn.BorderSizePixel = 0
-clrBtn.LayoutOrder = 2; clrBtn.ZIndex = 8; clrBtn.Parent = P4
-Instance.new("UICorner", clrBtn).CornerRadius = UDim.new(0,8)
-clrBtn.MouseButton1Click:Connect(function()
-    logList = {}
-    for _, ch in ipairs(logScroll:GetChildren()) do
-        if ch:IsA("TextLabel") then ch:Destroy() end
-    end
-    logScroll.CanvasSize = UDim2.new(0,0,0,0)
-end)
-
--- ══════════════════════════════════════════════
--- MINIMIZE / RESTORE
--- ══════════════════════════════════════════════
-MinBtn.MouseButton1Click:Connect(function()
-    TweenService:Create(Win, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In),
-        {Size = UDim2.new(0.92,0,0,0)}):Play()
-    task.wait(0.2)
-    Win.Visible = false; Icon.Visible = true
-end)
-
-Icon.MouseButton1Click:Connect(function()
-    Icon.Visible = false; Win.Visible = true
-    Win.Size = UDim2.new(0.92,0,0,0)
-    TweenService:Create(Win, TweenInfo.new(0.2, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-        {Size = UDim2.new(0.92,0,0.80,0)}):Play()
-end)
-
--- DRAG
-do
-    local drag, sp, sw
-    Header.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1
-        or i.UserInputType == Enum.UserInputType.Touch then
-            drag = true; sp = i.Position; sw = Win.Position
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1
-        or i.UserInputType == Enum.UserInputType.Touch then drag = false end
-    end)
-    UserInputService.InputChanged:Connect(function(i)
-        if not drag then return end
-        if i.UserInputType ~= Enum.UserInputType.MouseMovement
-        and i.UserInputType ~= Enum.UserInputType.Touch then return end
-        local d = i.Position - sp
-        if d.Magnitude > 5 then
-            Win.Position = UDim2.new(sw.X.Scale,sw.X.Offset+d.X,sw.Y.Scale,sw.Y.Offset+d.Y)
-        end
-    end)
-end
-do
-    local drag, sp, si
-    Icon.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1
-        or i.UserInputType == Enum.UserInputType.Touch then
-            drag = true; sp = i.Position; si = Icon.Position
-        end
-    end)
-    UserInputService.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1
-        or i.UserInputType == Enum.UserInputType.Touch then drag = false end
-    end)
-    UserInputService.InputChanged:Connect(function(i)
-        if not drag then return end
-        if i.UserInputType ~= Enum.UserInputType.MouseMovement
-        and i.UserInputType ~= Enum.UserInputType.Touch then return end
-        local d = i.Position - sp
-        if d.Magnitude > 5 then
-            Icon.Position = UDim2.new(si.X.Scale,si.X.Offset+d.X,si.Y.Scale,si.Y.Offset+d.Y)
-        end
-    end)
-end
-
--- ══════════════════════════════════════════════
--- FPS LOOP
--- ══════════════════════════════════════════════
-local fT, fS = 0, {}
-RunService.Heartbeat:Connect(function(dt)
-    table.insert(fS, 1/math.max(dt,0.001))
-    if #fS > 30 then table.remove(fS,1) end
-    fT += dt
-    if fT >= 0.5 then
-        fT = 0
-        local s = 0; for _, v in ipairs(fS) do s += v end
-        local avg = math.floor(s/#fS)
-        local col = avg >= 50 and C.Green or avg >= 25 and C.Yellow or C.Red
-        local txt = "⚡ FPS: "..avg
-        fLbl.Text = txt; fLbl.TextColor3 = col
-        pfLbl.Text = txt; pfLbl.TextColor3 = col
-    end
-end)
-
--- ══════════════════════════════════════════════
--- DIRECTIONS للحركة (معرّف هنا قبل الـ loop)
--- ══════════════════════════════════════════════
-local Dirs = {
-    Vector3.new(1,0,0),  Vector3.new(-1,0,0),
-    Vector3.new(0,0,1),  Vector3.new(0,0,-1),
-    Vector3.new(1,0,1).Unit, Vector3.new(-1,0,-1).Unit,
-    Vector3.new(1,0,-1).Unit, Vector3.new(-1,0,1).Unit,
-}
-
-local lastJump   = 0
-local lastWalk   = 0
-local lastRandom = 0
-local lastAbility = 0
-
--- ══════════════════════════════════════════════
--- MAIN LOOP — الصد الصحيح لـ Blade Ball
--- المنطق: عندما تكون الكرة تستهدفك يظهر Highlight
--- على شخصيتك — هذا هو الوقت الصحيح للصد
--- ══════════════════════════════════════════════
-RunService.Heartbeat:Connect(function()
-    pcall(function()
-        local char = LP.Character
-        if not char then return end
-        local hrp = char:FindFirstChild("HumanoidRootPart")
-        local hum = char:FindFirstChild("Humanoid")
-        if not hrp or not hum then return end
-        local now = tick()
-
-        -- ══════════════════════════════════════
-        -- AUTO PARRY — يتحقق من Highlight (الكرة تستهدفك)
-        -- ══════════════════════════════════════
-        if CFG.AutoParry and ParryRE and Balls then
-            for _, ball in ipairs(Balls:GetChildren()) do
-                if ball:IsA("BasePart") and ball:GetAttribute("realBall") == true then
-                    -- توجيه الشخصية نحو الكرة
-                    hrp.CFrame = CFrame.new(hrp.Position, ball.Position)
-
-                    -- الصد عندما يظهر Highlight = الكرة تستهدفك
-                    if char:FindFirstChild("Highlight") then
-                        -- انتقل قليلاً نحو الكرة لضمان الصد
-                        hrp.CFrame = ball.CFrame * CFrame.new(0, 0,
-                            ball.AssemblyLinearVelocity.Magnitude * -0.5)
-                        pcall(function() ParryRE:Fire() end)
-                        SetStatus("تم الصد! 🛡", C.Green)
-                        Log("صد ✅", C.Green)
+        
+        -- تحسين: معالجة المؤثرات بشكل أكثر كفاءة
+        task.spawn(function()
+            local count = 0
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                pcall(function()
+                    if on and (v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles")) then
+                        v.Enabled = false
+                        count = count + 1
+                    elseif not on and (v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles")) then
+                        v.Enabled = true
                     end
-                    break
-                end
-            end
-        end
-
-        -- ══════════════════════════════════════
-        -- AUTO ABILITY — نفس منطق الصد
-        -- ══════════════════════════════════════
-        if CFG.AutoAbility and AbilityRE and Balls and now - lastAbility > 2 then
-            for _, ball in ipairs(Balls:GetChildren()) do
-                if ball:IsA("BasePart") and ball:GetAttribute("realBall") == true then
-                    if char:FindFirstChild("Highlight") then
-                        lastAbility = now
-                        pcall(function() AbilityRE:Fire() end)
-                        Log("قدرة ✨", C.Yellow)
-                    end
-                    break
-                end
-            end
-        end
-
-        -- ══════════════════════════════════════
-        -- AUTO JUMP
-        -- ══════════════════════════════════════
-        if CFG.AutoJump and now - lastJump >= CFG.JumpInterval then
-            lastJump = now
-            hum.Jump = true
-            task.spawn(function()
-                task.wait(0.05)
-                pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
-            end)
-        end
-
-        -- ══════════════════════════════════════
-        -- AUTO WALK
-        -- ══════════════════════════════════════
-        if CFG.AutoWalk and now - lastWalk >= 0.6 then
-            lastWalk = now
-            hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 22)
-        end
-
-        -- ══════════════════════════════════════
-        -- RANDOM MOVE
-        -- ══════════════════════════════════════
-        if CFG.RandomMove and now - lastRandom >= CFG.MoveInterval then
-            lastRandom = now
-            hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 16)
-        end
-    end)
-end)
-
--- ══════════════════════════════════════════════
-Log("Dashboard v8.0 تم التحميل ✔", C.Accent)
-if ParryRE then
-    Log("✅ Parry: "..ParryRE:GetFullName(), C.Green)
-else
-    Log("❌ Parry Remote غير موجود!", C.Red)
-end
-print("[BB v8] loaded ✔")
+                    
+                    if on and (v:IsA("BlurEffect") or v:IsA("ColorCorrectionEffect") or v:IsA("SunRaysEffect") or v:IsA("BloomEffect"))
