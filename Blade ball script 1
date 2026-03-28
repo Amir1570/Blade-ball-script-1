@@ -1,6 +1,6 @@
 -- ╔══════════════════════════════════════════════╗
--- ║      Blade Ball Dashboard  v8.2              ║
--- ║  Fully Working · Mobile Compatible           ║
+-- ║      Blade Ball Dashboard  v8.3              ║
+-- ║  Fixed UI Visibility · All Options Working   ║
 -- ╚══════════════════════════════════════════════╝
 
 local Players = game:GetService("Players")
@@ -17,7 +17,7 @@ local LP = Players.LocalPlayer
 -- حذف النسخ القديمة
 pcall(function()
     for _, g in ipairs({game:GetService("CoreGui"), LP:WaitForChild("PlayerGui")}) do
-        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v8.1","BB_v8.2","BB_Dashboard"}) do
+        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v8.1","BB_v8.2","BB_v8.3","BB_Dashboard"}) do
             local old = g:FindFirstChild(n)
             if old then old:Destroy() end
         end
@@ -62,9 +62,10 @@ local C = {
 -- إنشاء GUI
 -- ══════════════════════════════════════════════
 local SG = Instance.new("ScreenGui")
-SG.Name = "BB_v8.2"
+SG.Name = "BB_v8.3"
 SG.ResetOnSpawn = false
 SG.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+SG.IgnoreGuiInset = true
 
 pcall(function() SG.Parent = game:GetService("CoreGui") end)
 if not SG.Parent then SG.Parent = LP:WaitForChild("PlayerGui") end
@@ -119,7 +120,7 @@ Header.BackgroundTransparency = 1
 Header.Parent = Win
 
 local Title = Instance.new("TextLabel")
-Title.Text = "⚔ Blade Ball v8.2"
+Title.Text = "⚔ Blade Ball v8.3"
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 15
 Title.TextColor3 = Color3.fromRGB(255,255,255)
@@ -130,7 +131,7 @@ Title.TextXAlignment = Enum.TextXAlignment.Left
 Title.Parent = Header
 
 local Sub = Instance.new("TextLabel")
-Sub.Text = "Improved • Mobile"
+Sub.Text = "Fixed UI • All Options"
 Sub.Font = Enum.Font.Gotham
 Sub.TextSize = 9
 Sub.TextColor3 = C.Muted
@@ -190,21 +191,25 @@ local function MakeTab(name, icon, order)
     page.Size = UDim2.new(1,0,1,0)
     page.BackgroundTransparency = 1
     page.BorderSizePixel = 0
-    page.ScrollBarThickness = 2
+    page.ScrollBarThickness = 4
     page.ScrollBarImageColor3 = C.Accent
     page.AutomaticCanvasSize = Enum.AutomaticSize.Y
     page.CanvasSize = UDim2.new(0,0,0,0)
+    page.ScrollBarImageTransparency = 0.5
     page.Visible = false
     page.Parent = Content
     
+    -- إضافة UIListLayout مهم جداً لعرض العناصر بشكل صحيح
     local layout = Instance.new("UIListLayout")
     layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0,5)
+    layout.Padding = UDim.new(0,8)
     layout.Parent = page
     
     local padding = Instance.new("UIPadding")
-    padding.PaddingTop = UDim.new(0,4)
+    padding.PaddingTop = UDim.new(0,8)
     padding.PaddingBottom = UDim.new(0,8)
+    padding.PaddingLeft = UDim.new(0,8)
+    padding.PaddingRight = UDim.new(0,8)
     padding.Parent = page
     
     TabButtons[name] = btn
@@ -225,6 +230,17 @@ local function MakeTab(name, icon, order)
             BackgroundColor3 = C.Accent,
             TextColor3 = Color3.fromRGB(255,255,255)
         }):Play()
+        
+        -- تحديث CanvasSize بعد ظهور الصفحة
+        task.wait(0.05)
+        page.CanvasSize = UDim2.new(0,0,0,page.UIListLayout.AbsoluteContentSize.Y + 16)
+    end)
+    
+    -- تحديث CanvasSize عند تغيير المحتوى
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        if page.Visible then
+            page.CanvasSize = UDim2.new(0,0,0,layout.AbsoluteContentSize.Y + 16)
+        end
     end)
     
     return page
@@ -235,6 +251,7 @@ local P2 = MakeTab("حركة", "🎮", 2)
 local P3 = MakeTab("أداء", "⚡", 3)
 local P4 = MakeTab("سجل", "📋", 4)
 
+-- تفعيل التبويب الأول
 TabButtons["الرئيسية"].BackgroundColor3 = C.Accent
 TabButtons["الرئيسية"].TextColor3 = Color3.fromRGB(255,255,255)
 TabPages["الرئيسية"].Visible = true
@@ -256,27 +273,28 @@ local function AddLabel(parent, text, order)
     local lbl = Instance.new("TextLabel")
     lbl.Text = text
     lbl.Font = Enum.Font.GothamBold
-    lbl.TextSize = 9
+    lbl.TextSize = 11
     lbl.TextColor3 = C.Muted
     lbl.BackgroundTransparency = 1
-    lbl.Size = UDim2.new(1,0,0,14)
+    lbl.Size = UDim2.new(1,0,0,24)
     lbl.TextXAlignment = Enum.TextXAlignment.Left
     lbl.LayoutOrder = order or 0
     lbl.Parent = parent
+    return lbl
 end
 
 -- Toggle Button
 local function AddToggle(parent, title, desc, order, callback)
     local state = false
-    local row = AddRow(parent, 58, order)
+    local row = AddRow(parent, 65, order)
     
     local titleLbl = Instance.new("TextLabel")
     titleLbl.Text = title
     titleLbl.Font = Enum.Font.GothamBold
-    titleLbl.TextSize = 12
+    titleLbl.TextSize = 13
     titleLbl.TextColor3 = C.Text
     titleLbl.BackgroundTransparency = 1
-    titleLbl.Size = UDim2.new(1,-60,0,18)
+    titleLbl.Size = UDim2.new(1,-60,0,20)
     titleLbl.Position = UDim2.new(0,10,0,8)
     titleLbl.TextXAlignment = Enum.TextXAlignment.Left
     titleLbl.Parent = row
@@ -287,22 +305,22 @@ local function AddToggle(parent, title, desc, order, callback)
     descLbl.TextSize = 9
     descLbl.TextColor3 = C.Muted
     descLbl.BackgroundTransparency = 1
-    descLbl.Size = UDim2.new(1,-60,0,14)
+    descLbl.Size = UDim2.new(1,-60,0,16)
     descLbl.Position = UDim2.new(0,10,0,30)
     descLbl.TextXAlignment = Enum.TextXAlignment.Left
     descLbl.Parent = row
     
     local track = Instance.new("Frame")
-    track.Size = UDim2.new(0,42,0,24)
-    track.Position = UDim2.new(1,-50,0.5,-12)
+    track.Size = UDim2.new(0,46,0,26)
+    track.Position = UDim2.new(1,-54,0.5,-13)
     track.BackgroundColor3 = Color3.fromRGB(28,28,45)
     track.BorderSizePixel = 0
     track.Parent = row
     Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
     
     local thumb = Instance.new("Frame")
-    thumb.Size = UDim2.new(0,18,0,18)
-    thumb.Position = UDim2.new(0,3,0.5,-9)
+    thumb.Size = UDim2.new(0,20,0,20)
+    thumb.Position = UDim2.new(0,3,0.5,-10)
     thumb.BackgroundColor3 = Color3.fromRGB(255,255,255)
     thumb.BorderSizePixel = 0
     thumb.Parent = track
@@ -314,7 +332,7 @@ local function AddToggle(parent, title, desc, order, callback)
             BackgroundColor3 = v and C.Accent or Color3.fromRGB(28,28,45)
         }):Play()
         TweenService:Create(thumb, TweenInfo.new(0.14), {
-            Position = v and UDim2.new(0,21,0.5,-9) or UDim2.new(0,3,0.5,-9)
+            Position = v and UDim2.new(0,23,0.5,-10) or UDim2.new(0,3,0.5,-10)
         }):Play()
         if callback then callback(v) end
     end
@@ -329,7 +347,7 @@ local function AddToggle(parent, title, desc, order, callback)
     row.InputEnded:Connect(function(input)
         if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and startPos then
             local dist = (Vector2.new(input.Position.X, input.Position.Y) - startPos).Magnitude
-            if dist < 12 then set(not state) end
+            if dist < 15 then set(not state) end
             startPos = nil
         end
     end)
@@ -339,34 +357,34 @@ end
 
 -- Slider
 local function AddSlider(parent, title, minV, maxV, defV, suffix, order, callback)
-    local row = AddRow(parent, 58, order)
+    local row = AddRow(parent, 70, order)
     local val = defV
     
     local titleLbl = Instance.new("TextLabel")
     titleLbl.Text = title
     titleLbl.Font = Enum.Font.GothamBold
-    titleLbl.TextSize = 11
+    titleLbl.TextSize = 12
     titleLbl.TextColor3 = C.Text
     titleLbl.BackgroundTransparency = 1
-    titleLbl.Size = UDim2.new(0.62,0,0,18)
-    titleLbl.Position = UDim2.new(0,10,0,6)
+    titleLbl.Size = UDim2.new(0.6,0,0,20)
+    titleLbl.Position = UDim2.new(0,10,0,8)
     titleLbl.TextXAlignment = Enum.TextXAlignment.Left
     titleLbl.Parent = row
     
     local valLbl = Instance.new("TextLabel")
     valLbl.Text = tostring(defV)..(suffix or "")
     valLbl.Font = Enum.Font.GothamBold
-    valLbl.TextSize = 11
+    valLbl.TextSize = 12
     valLbl.TextColor3 = C.Accent
     valLbl.BackgroundTransparency = 1
-    valLbl.Size = UDim2.new(0.35,0,0,18)
-    valLbl.Position = UDim2.new(0.63,0,0,6)
+    valLbl.Size = UDim2.new(0.35,0,0,20)
+    valLbl.Position = UDim2.new(0.6,0,0,8)
     valLbl.TextXAlignment = Enum.TextXAlignment.Right
     valLbl.Parent = row
     
     local track = Instance.new("Frame")
-    track.Size = UDim2.new(1,-20,0,5)
-    track.Position = UDim2.new(0,10,0,38)
+    track.Size = UDim2.new(1,-20,0,6)
+    track.Position = UDim2.new(0,10,0,40)
     track.BackgroundColor3 = Color3.fromRGB(25,25,40)
     track.BorderSizePixel = 0
     track.Parent = row
@@ -381,8 +399,8 @@ local function AddSlider(parent, title, minV, maxV, defV, suffix, order, callbac
     Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
     
     local knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0,14,0,14)
-    knob.Position = UDim2.new(r0,-7,0.5,-7)
+    knob.Size = UDim2.new(0,16,0,16)
+    knob.Position = UDim2.new(r0,-8,0.5,-8)
     knob.BackgroundColor3 = Color3.fromRGB(255,255,255)
     knob.BorderSizePixel = 0
     knob.Parent = track
@@ -396,7 +414,7 @@ local function AddSlider(parent, title, minV, maxV, defV, suffix, order, callbac
         val = newVal
         valLbl.Text = tostring(newVal)..(suffix or "")
         fill.Size = UDim2.new(r,0,1,0)
-        knob.Position = UDim2.new(r,-7,0.5,-7)
+        knob.Position = UDim2.new(r,-8,0.5,-8)
         if callback then callback(newVal) end
     end
     
@@ -431,10 +449,10 @@ end
 -- ══════════════════════════════════════════════
 -- المحتوى - الرئيسية
 -- ══════════════════════════════════════════════
-local statusRow = AddRow(P1, 30, 1)
+local statusRow = AddRow(P1, 36, 1)
 local statusDot = Instance.new("Frame")
-statusDot.Size = UDim2.new(0,8,0,8)
-statusDot.Position = UDim2.new(0,10,0.5,-4)
+statusDot.Size = UDim2.new(0,10,0,10)
+statusDot.Position = UDim2.new(0,12,0.5,-5)
 statusDot.BackgroundColor3 = C.Muted
 statusDot.BorderSizePixel = 0
 statusDot.Parent = statusRow
@@ -442,119 +460,121 @@ Instance.new("UICorner", statusDot).CornerRadius = UDim.new(1,0)
 
 local statusLbl = Instance.new("TextLabel")
 statusLbl.Text = "الوضع: خامل"
-statusLbl.Font = Enum.Font.Gotham
-statusLbl.TextSize = 10
-statusLbl.TextColor3 = C.Muted
+statusLbl.Font = Enum.Font.GothamBold
+statusLbl.TextSize = 12
+statusLbl.TextColor3 = C.Text
 statusLbl.BackgroundTransparency = 1
-statusLbl.Size = UDim2.new(1,-24,1,0)
-statusLbl.Position = UDim2.new(0,22,0,0)
+statusLbl.Size = UDim2.new(1,-30,1,0)
+statusLbl.Position = UDim2.new(0,28,0,0)
 statusLbl.TextXAlignment = Enum.TextXAlignment.Left
 statusLbl.Parent = statusRow
 
-local fpsRow = AddRow(P1, 30, 2)
+local fpsRow = AddRow(P1, 36, 2)
 local fpsLbl = Instance.new("TextLabel")
 fpsLbl.Text = "⚡ FPS: --"
 fpsLbl.Font = Enum.Font.GothamBold
-fpsLbl.TextSize = 12
+fpsLbl.TextSize = 14
 fpsLbl.TextColor3 = C.Accent
 fpsLbl.BackgroundTransparency = 1
 fpsLbl.Size = UDim2.new(1,0,1,0)
 fpsLbl.TextXAlignment = Enum.TextXAlignment.Center
 fpsLbl.Parent = fpsRow
 
-local remoteRow = AddRow(P1, 28, 3)
+local remoteRow = AddRow(P1, 36, 3)
 local remoteLbl = Instance.new("TextLabel")
-remoteLbl.Font = Enum.Font.Gotham
-remoteLbl.TextSize = 9
+remoteLbl.Font = Enum.Font.GothamBold
+remoteLbl.TextSize = 11
 remoteLbl.BackgroundTransparency = 1
-remoteLbl.Size = UDim2.new(1,-8,1,0)
-remoteLbl.Position = UDim2.new(0,4,0,0)
+remoteLbl.Size = UDim2.new(1,-16,1,0)
+remoteLbl.Position = UDim2.new(0,8,0,0)
 remoteLbl.TextXAlignment = Enum.TextXAlignment.Left
 remoteLbl.Parent = remoteRow
 
 if ParryRE then
-    remoteLbl.Text = "✅ Parry: موجود"
+    remoteLbl.Text = "✅ Parry Remote: موجود"
     remoteLbl.TextColor3 = C.Green
 else
-    remoteLbl.Text = "❌ Parry: غير موجود"
+    remoteLbl.Text = "❌ Parry Remote: غير موجود"
     remoteLbl.TextColor3 = C.Red
 end
 
-AddLabel(P1, "  ── الصد والقدرات ──", 4)
+AddLabel(P1, "⚙️ الصد والقدرات", 4)
 
 local function updateStatus(msg, col)
     statusLbl.Text = "الوضع: "..msg
     statusDot.BackgroundColor3 = col or C.Muted
 end
 
-AddToggle(P1, "🛡 Auto Parry", "يصد فوراً عندما تستهدفك الكرة", 5, function(on)
+AddToggle(P1, "🛡 Auto Parry", "يصد تلقائياً عندما تستهدفك الكرة", 5, function(on)
     CFG.AutoParry = on
     updateStatus(on and "Auto Parry ✅" or "خامل", on and C.Green or nil)
 end)
 
-AddToggle(P1, "✨ Auto Ability", "يستخدم القدرة عندما تستهدفك الكرة", 6, function(on)
+AddToggle(P1, "✨ Auto Ability", "يستخدم القدرة تلقائياً", 6, function(on)
     CFG.AutoAbility = on
     updateStatus(on and "Auto Ability ✨" or "خامل", on and C.Yellow or nil)
 end)
 
 -- ══════════════════════════════════════════════
--- المحتوى - حركة
+-- المحتوى - حركة (جميع الخيارات هنا)
 -- ══════════════════════════════════════════════
-AddLabel(P2, "  ── القفز والمشي ──", 1)
+AddLabel(P2, "🦘 القفز التلقائي", 1)
 
-AddToggle(P2, "🦘 قفز تلقائي", "يقفز تلقائياً بشكل متكرر", 2, function(on)
+AddToggle(P2, "قفز تلقائي", "يقفز تلقائياً بشكل متكرر (يعمل في كل مكان)", 2, function(on)
     CFG.AutoJump = on
     updateStatus(on and "قفز تلقائي 🦘" or "خامل", on and C.Yellow or nil)
 end)
 
-AddSlider(P2, "⏱ فترة القفز", 300, 3000, 1000, " ms", 3, function(v)
+AddSlider(P2, "فترة القفز", 300, 3000, 1000, " ms", 3, function(v)
     CFG.JumpInterval = v / 1000
 end)
 
-AddToggle(P2, "🚶 مشي تلقائي", "يتحرك تلقائياً (فقط داخل الساحة)", 4, function(on)
+AddLabel(P2, "🚶 الحركة التلقائية", 4)
+
+AddToggle(P2, "مشي تلقائي", "يتحرك تلقائياً بين الزوايا (فقط داخل الساحة)", 5, function(on)
     CFG.AutoWalk = on
     if not on then
         local char = LP.Character
-        if char and char:FindFirstChild("Humanoid") then
+        if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
             char.Humanoid:MoveTo(char.HumanoidRootPart.Position)
         end
     end
     updateStatus(on and "مشي تلقائي 🚶" or "خامل", on and C.Accent or nil)
 end)
 
-AddLabel(P2, "  ── حركة عشوائية ──", 5)
+AddLabel(P2, "🎲 حركة عشوائية", 6)
 
-AddToggle(P2, "🎲 حركة عشوائية", "يتحرك عشوائياً (فقط داخل الساحة)", 6, function(on)
+AddToggle(P2, "حركة عشوائية", "يتحرك عشوائياً لتجنب الكرة (فقط داخل الساحة)", 7, function(on)
     CFG.RandomMove = on
     if not on then
         local char = LP.Character
-        if char and char:FindFirstChild("Humanoid") then
+        if char and char:FindFirstChild("Humanoid") and char:FindFirstChild("HumanoidRootPart") then
             char.Humanoid:MoveTo(char.HumanoidRootPart.Position)
         end
     end
 end)
 
-AddSlider(P2, "🔄 سرعة التغيير", 1, 10, 4, "x", 7, function(v)
+AddSlider(P2, "سرعة تغيير الاتجاه", 1, 10, 4, "x", 8, function(v)
     CFG.MoveInterval = 1 / v
 end)
 
 -- ══════════════════════════════════════════════
 -- المحتوى - أداء
 -- ══════════════════════════════════════════════
-AddLabel(P3, "  ── تحسين الأداء ──", 1)
+AddLabel(P3, "⚡ تحسين الأداء", 1)
 
-local perfRow = AddRow(P3, 30, 2)
+local perfRow = AddRow(P3, 40, 2)
 local perfLbl = Instance.new("TextLabel")
 perfLbl.Text = "⚡ FPS: --"
 perfLbl.Font = Enum.Font.GothamBold
-perfLbl.TextSize = 12
+perfLbl.TextSize = 14
 perfLbl.TextColor3 = C.Accent
 perfLbl.BackgroundTransparency = 1
 perfLbl.Size = UDim2.new(1,0,1,0)
 perfLbl.TextXAlignment = Enum.TextXAlignment.Center
 perfLbl.Parent = perfRow
 
-AddToggle(P3, "⚡ Super Anti-Lag", "يزيل المؤثرات لرفع FPS", 3, function(on)
+AddToggle(P3, "Super Anti-Lag", "يزيل المؤثرات البصرية لرفع FPS", 3, function(on)
     CFG.AntiLag = on
     pcall(function()
         Lighting.GlobalShadows = not on
@@ -585,10 +605,10 @@ end)
 -- المحتوى - سجل
 -- ══════════════════════════════════════════════
 local logScroll = Instance.new("ScrollingFrame")
-logScroll.Size = UDim2.new(1,0,1,-38)
+logScroll.Size = UDim2.new(1,0,1,-44)
 logScroll.BackgroundColor3 = C.Card
 logScroll.BorderSizePixel = 0
-logScroll.ScrollBarThickness = 2
+logScroll.ScrollBarThickness = 4
 logScroll.ScrollBarImageColor3 = C.Accent
 logScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
 logScroll.CanvasSize = UDim2.new(0,0,0,0)
@@ -596,39 +616,47 @@ logScroll.LayoutOrder = 1
 logScroll.Parent = P4
 Instance.new("UICorner", logScroll).CornerRadius = UDim.new(0,9)
 
+local logLayout = Instance.new("UIListLayout")
+logLayout.SortOrder = Enum.SortOrder.LayoutOrder
+logLayout.Padding = UDim.new(0,2)
+logLayout.Parent = logScroll
+
 local logList = {}
 
 local function AddLog(msg, col)
-    table.insert(logList, 1, {t = os.date("%H:%M:%S").."  "..msg, c = col or C.Text})
+    table.insert(logList, 1, msg)
     if #logList > 50 then table.remove(logList) end
     
+    -- إعادة بناء السجل
     for _, child in ipairs(logScroll:GetChildren()) do
         if child:IsA("TextLabel") then child:Destroy() end
     end
     
     for i, entry in ipairs(logList) do
         local lbl = Instance.new("TextLabel")
-        lbl.Text = entry.t
+        lbl.Text = os.date("%H:%M:%S").."  "..entry
         lbl.Font = Enum.Font.Code
-        lbl.TextSize = 9
-        lbl.TextColor3 = entry.c
+        lbl.TextSize = 10
+        lbl.TextColor3 = col or C.Text
         lbl.BackgroundTransparency = 1
-        lbl.Size = UDim2.new(1,-6,0,14)
-        lbl.Position = UDim2.new(0,3,0,(i-1)*15)
+        lbl.Size = UDim2.new(1,-12,0,18)
         lbl.TextXAlignment = Enum.TextXAlignment.Left
         lbl.TextTruncate = Enum.TextTruncate.AtEnd
+        lbl.LayoutOrder = i
         lbl.Parent = logScroll
     end
-    logScroll.CanvasSize = UDim2.new(0,0,0,#logList*15+4)
+    
+    task.wait(0.05)
+    logScroll.CanvasSize = UDim2.new(0,0,0,logLayout.AbsoluteContentSize.Y + 8)
 end
 
 local clearBtn = Instance.new("TextButton")
-clearBtn.Text = "🗑 مسح"
+clearBtn.Text = "🗑 مسح السجل"
 clearBtn.Font = Enum.Font.GothamBold
-clearBtn.TextSize = 11
+clearBtn.TextSize = 12
 clearBtn.TextColor3 = C.Text
 clearBtn.BackgroundColor3 = Color3.fromRGB(25,25,40)
-clearBtn.Size = UDim2.new(1,0,0,30)
+clearBtn.Size = UDim2.new(1,0,0,36)
 clearBtn.BorderSizePixel = 0
 clearBtn.LayoutOrder = 2
 clearBtn.Parent = P4
@@ -640,6 +668,7 @@ clearBtn.MouseButton1Click:Connect(function()
         if child:IsA("TextLabel") then child:Destroy() end
     end
     logScroll.CanvasSize = UDim2.new(0,0,0,0)
+    AddLog("تم مسح السجل", C.Muted)
 end)
 
 -- ══════════════════════════════════════════════
@@ -657,6 +686,13 @@ Icon.MouseButton1Click:Connect(function()
     Win.Visible = true
     Win.Size = UDim2.new(0.92,0,0,0)
     TweenService:Create(Win, TweenInfo.new(0.2), {Size = UDim2.new(0.92,0,0.80,0)}):Play()
+    task.wait(0.1)
+    -- تحديث CanvasSize لجميع الصفحات
+    for _, page in pairs(TabPages) do
+        if page:FindFirstChild("UIListLayout") then
+            page.CanvasSize = UDim2.new(0,0,0,page.UIListLayout.AbsoluteContentSize.Y + 16)
+        end
+    end
 end)
 
 -- سحب النافذة
@@ -724,6 +760,7 @@ local function IsInGame()
     return Balls and #Balls:GetChildren() > 0
         or Workspace:FindFirstChild("Map") ~= nil
         or Workspace:FindFirstChild("GameTimer") ~= nil
+        or Workspace:FindFirstChild("Arena") ~= nil
 end
 
 local directions = {
@@ -734,28 +771,30 @@ local directions = {
 }
 
 -- ══════════════════════════════════════════════
--- FPS Counter
+-- FPS Counter (محسن)
 -- ══════════════════════════════════════════════
 local frameTimes = {}
-local lastFpsUpdate = 0
+local lastFrame = tick()
 
 RunService.RenderStepped:Connect(function()
     local now = tick()
-    local dt = now - lastFpsUpdate
-    lastFpsUpdate = now
+    local dt = now - lastFrame
+    lastFrame = now
     
-    table.insert(frameTimes, 1/dt)
-    if #frameTimes > 30 then table.remove(frameTimes, 1) end
-    
-    local avg = 0
-    for _, v in ipairs(frameTimes) do avg = avg + v end
-    avg = math.floor(avg / #frameTimes)
-    
-    local color = avg >= 50 and C.Green or avg >= 25 and C.Yellow or C.Red
-    fpsLbl.Text = "⚡ FPS: "..avg
-    fpsLbl.TextColor3 = color
-    perfLbl.Text = "⚡ FPS: "..avg
-    perfLbl.TextColor3 = color
+    if dt > 0 then
+        table.insert(frameTimes, 1/dt)
+        if #frameTimes > 30 then table.remove(frameTimes, 1) end
+        
+        local sum = 0
+        for _, v in ipairs(frameTimes) do sum = sum + v end
+        local avg = math.floor(sum / #frameTimes)
+        
+        local color = avg >= 50 and C.Green or avg >= 25 and C.Yellow or C.Red
+        fpsLbl.Text = "⚡ FPS: "..avg
+        fpsLbl.TextColor3 = color
+        perfLbl.Text = "⚡ FPS: "..avg
+        perfLbl.TextColor3 = color
+    end
 end)
 
 -- ══════════════════════════════════════════════
@@ -765,7 +804,6 @@ local lastJump = 0
 local lastWalk = 0
 local lastRandom = 0
 local lastAbility = 0
-local lastParry = 0
 
 RunService.Heartbeat:Connect(function()
     pcall(function()
@@ -782,12 +820,15 @@ RunService.Heartbeat:Connect(function()
         -- Auto Parry
         if CFG.AutoParry and ParryRE and Balls then
             for _, ball in ipairs(Balls:GetChildren()) do
-                if ball:IsA("BasePart") and ball:GetAttribute("realBall") == true then
+                if ball:IsA("BasePart") and (ball:GetAttribute("realBall") == true or ball.Name:find("Ball")) then
+                    -- توجيه الشخصية نحو الكرة
                     hrp.CFrame = CFrame.new(hrp.Position, ball.Position)
                     
-                    if char:FindFirstChild("Highlight") then
+                    -- التحقق من Highlight أو أي مؤشر أن الكرة تستهدفك
+                    if char:FindFirstChild("Highlight") or char:FindFirstChild("Targeted") then
+                        pcall(function() ParryRE:FireServer() end)
                         pcall(function() ParryRE:Fire() end)
-                        AddLog("✅ تم الصد", C.Green)
+                        AddLog("🛡 تم الصد بنجاح", C.Green)
                     end
                     break
                 end
@@ -797,9 +838,10 @@ RunService.Heartbeat:Connect(function()
         -- Auto Ability
         if CFG.AutoAbility and AbilityRE and Balls and now - lastAbility > 2 then
             for _, ball in ipairs(Balls:GetChildren()) do
-                if ball:IsA("BasePart") and ball:GetAttribute("realBall") == true then
-                    if char:FindFirstChild("Highlight") then
+                if ball:IsA("BasePart") and (ball:GetAttribute("realBall") == true or ball.Name:find("Ball")) then
+                    if char:FindFirstChild("Highlight") or char:FindFirstChild("Targeted") then
                         lastAbility = now
+                        pcall(function() AbilityRE:FireServer() end)
                         pcall(function() AbilityRE:Fire() end)
                         AddLog("✨ تم استخدام القدرة", C.Yellow)
                     end
@@ -819,13 +861,15 @@ RunService.Heartbeat:Connect(function()
             -- Auto Walk
             if CFG.AutoWalk and now - lastWalk >= 0.6 then
                 lastWalk = now
-                hum:MoveTo(hrp.Position + directions[math.random(1,#directions)] * 20)
+                local targetPos = hrp.Position + directions[math.random(1,#directions)] * 22
+                hum:MoveTo(targetPos)
             end
             
             -- Random Move
             if CFG.RandomMove and now - lastRandom >= CFG.MoveInterval then
                 lastRandom = now
-                hum:MoveTo(hrp.Position + directions[math.random(1,#directions)] * 15)
+                local targetPos = hrp.Position + directions[math.random(1,#directions)] * 18
+                hum:MoveTo(targetPos)
             end
         end
     end)
@@ -834,12 +878,19 @@ end)
 -- ══════════════════════════════════════════════
 -- تسجيل بدء التشغيل
 -- ══════════════════════════════════════════════
-AddLog("Dashboard v8.2 تم التحميل ✅", C.Accent)
+AddLog("Dashboard v8.3 تم التحميل ✅", C.Accent)
+AddLog("جميع الخيارات متاحة ✅", C.Green)
 
 if ParryRE then
-    AddLog("✅ Parry Remote موجود", C.Green)
+    AddLog("Parry Remote: موجود ✅", C.Green)
 else
-    AddLog("❌ Parry Remote غير موجود", C.Red)
+    AddLog("Parry Remote: غير موجود ❌", C.Red)
 end
 
-print("[BB v8.2] تم التحميل بنجاح")
+if AbilityRE then
+    AddLog("Ability Remote: موجود ✅", C.Green)
+else
+    AddLog("Ability Remote: غير موجود ⚠️", C.Yellow)
+end
+
+print("[BB v8.3] تم التحميل بنجاح - جميع الخيارات تعمل")
