@@ -1,7 +1,7 @@
 -- ╔══════════════════════════════════════════════╗
 -- ║      Blade Ball Dashboard  v8.0              ║
 -- ║  Fixed Parry · Fixed Move · Mobile           ║
--- ║  + Movement only in arena                    ║
+-- ║  + Movement ONLY when ball exists            ║
 -- ╚══════════════════════════════════════════════╝
 
 local Players          = game:GetService("Players")
@@ -332,7 +332,7 @@ sLbl.TextColor3 = C.Muted; sLbl.BackgroundTransparency = 1
 sLbl.Size = UDim2.new(1,-24,1,0); sLbl.Position = UDim2.new(0,22,0,0)
 sLbl.TextXAlignment = Enum.TextXAlignment.Left; sLbl.ZIndex = 9; sLbl.Parent = sRow
 
--- إضافة مؤشر للمكان (لوبي / ساحة)
+-- مؤشر المكان (الساحة / اللوبي)
 local locRow = Row(P1,28,2)
 local locDot = Instance.new("Frame")
 locDot.Size = UDim2.new(0,8,0,8); locDot.Position = UDim2.new(0,10,0.5,-4)
@@ -399,14 +399,14 @@ Slider(P2, "⏱  فترة القفز", 300, 3000, 1000, " ms", 3, function(v)
     CFG.JumpInterval = v / 1000
 end)
 
-Toggle(P2, "🚶  مشي تلقائي", "يتحرك تلقائياً (فقط داخل الساحة)", 4, function(on)
+Toggle(P2, "🚶  مشي تلقائي", "يتحرك تلقائياً (فقط عند وجود كرة)", 4, function(on)
     CFG.AutoWalk = on
     SetStatus(on and "مشي تلقائي 🚶" or "خامل", on and C.Accent or nil)
 end)
 
 SLbl(P2, "  ── حركة عشوائية ──", 5)
 
-Toggle(P2, "🎲  حركة عشوائية", "يتحرك عشوائياً (فقط داخل الساحة)", 6, function(on)
+Toggle(P2, "🎲  حركة عشوائية", "يتحرك عشوائياً (فقط عند وجود كرة)", 6, function(on)
     CFG.RandomMove = on
 end)
 
@@ -603,39 +603,22 @@ local lastRandom = 0
 local lastAbility = 0
 
 -- ══════════════════════════════════════════════
--- دالة للتحقق من أن اللاعب داخل الساحة (وليس في اللوبي)
+-- دالة للتحقق من وجود كرة في الساحة (أدق طريقة)
 -- ══════════════════════════════════════════════
-local function IsInArena()
-    -- طريقة 1: وجود كرات في الساحة
-    if Balls and #Balls:GetChildren() > 0 then
-        return true
-    end
-    -- طريقة 2: وجود Map أو Arena
-    if workspace:FindFirstChild("Map") or workspace:FindFirstChild("Arena") then
-        return true
-    end
-    -- طريقة 3: وجود مؤقت اللعبة
-    if workspace:FindFirstChild("GameTimer") then
-        return true
-    end
-    -- طريقة 4: وجود لاعبين آخرين قريبين (مسافة أقل من 100)
-    local char = LP.Character
-    if char and char:FindFirstChild("HumanoidRootPart") then
-        local hrp = char.HumanoidRootPart
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LP and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local dist = (hrp.Position - player.Character.HumanoidRootPart.Position).Magnitude
-                if dist < 100 then
-                    return true
-                end
-            end
+local function HasBallInArena()
+    if not Balls then return false end
+    -- التحقق من وجود أي كرة في مجلد Balls
+    local children = Balls:GetChildren()
+    for _, ball in ipairs(children) do
+        if ball:IsA("BasePart") then
+            return true
         end
     end
     return false
 end
 
 -- ══════════════════════════════════════════════
--- MAIN LOOP — مع التحقق من الساحة للحركة فقط
+-- MAIN LOOP
 -- ══════════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
     pcall(function()
@@ -646,12 +629,14 @@ RunService.Heartbeat:Connect(function()
         if not hrp or not hum then return end
         local now = tick()
         
+        -- التحقق من وجود كرة (الطريقة الأكثر دقة)
+        local hasBall = HasBallInArena()
+        
         -- تحديث مؤشر المكان
-        local inArena = IsInArena()
-        if inArena then
-            SetLocation("الساحة 🎯", C.Green)
+        if hasBall then
+            SetLocation("الساحة 🎯 (كرة موجودة)", C.Green)
         else
-            SetLocation("اللوبي 💤", C.Yellow)
+            SetLocation("اللوبي 💤 (لا توجد كرة)", C.Yellow)
         end
 
         -- ══════════════════════════════════════
@@ -702,17 +687,17 @@ RunService.Heartbeat:Connect(function()
         end
 
         -- ══════════════════════════════════════
-        -- AUTO WALK (يعمل فقط داخل الساحة)
+        -- AUTO WALK (يعمل فقط عند وجود كرة)
         -- ══════════════════════════════════════
-        if CFG.AutoWalk and inArena and now - lastWalk >= 0.6 then
+        if CFG.AutoWalk and hasBall and now - lastWalk >= 0.6 then
             lastWalk = now
             hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 22)
         end
 
         -- ══════════════════════════════════════
-        -- RANDOM MOVE (يعمل فقط داخل الساحة)
+        -- RANDOM MOVE (يعمل فقط عند وجود كرة)
         -- ══════════════════════════════════════
-        if CFG.RandomMove and inArena and now - lastRandom >= CFG.MoveInterval then
+        if CFG.RandomMove and hasBall and now - lastRandom >= CFG.MoveInterval then
             lastRandom = now
             hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 16)
         end
@@ -721,9 +706,10 @@ end)
 
 -- ══════════════════════════════════════════════
 Log("Dashboard v8.0 (Arena Only) تم التحميل ✔", C.Accent)
+Log("⚠️ الحركة تعمل فقط عند وجود كرة في الساحة", C.Yellow)
 if ParryRE then
     Log("✅ Parry: "..ParryRE:GetFullName(), C.Green)
 else
     Log("❌ Parry Remote غير موجود!", C.Red)
 end
-print("[BB v8] loaded ✔ - الحركة تعمل فقط داخل الساحة") 
+print("[BB v8] loaded ✔ - الحركة تعمل فقط عند وجود كرة")
