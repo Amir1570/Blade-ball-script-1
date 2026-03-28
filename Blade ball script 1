@@ -1,7 +1,7 @@
 -- ╔══════════════════════════════════════════════╗
 -- ║      Blade Ball Dashboard  v8.0              ║
--- ║  Fixed Jump · Fixed Move · Mobile            ║
--- ║  + Working Anti-Lag                          ║
+-- ║  Fixed Move · Fixed Double Jump · Mobile     ║
+-- ║  + Gray Anti-Lag                             ║
 -- ╚══════════════════════════════════════════════╝
 
 local Players          = game:GetService("Players")
@@ -25,7 +25,7 @@ pcall(function()
 end)
 
 -- ══════════════════════════════════════════════
--- REMOTES
+-- REMOTES الصحيحة لـ Blade Ball
 -- ══════════════════════════════════════════════
 local Remotes   = RS:WaitForChild("Remotes", 10)
 local Balls     = workspace:WaitForChild("Balls", 10)
@@ -42,6 +42,7 @@ local CFG = {
     AntiLag      = false,
 }
 
+-- الألوان (تم تعديلها للرمادي في وضع Anti-Lag)
 local C = {
     BG     = Color3.fromRGB(10,  10,  16),
     Card   = Color3.fromRGB(18,  18,  28),
@@ -51,12 +52,8 @@ local C = {
     Yellow = Color3.fromRGB(251, 191, 36),
     Text   = Color3.fromRGB(220, 220, 255),
     Muted  = Color3.fromRGB(75,  75,  110),
+    Gray   = Color3.fromRGB(60,  60,  70),
 }
-
--- متغيرات التوقيت
-local lastJump   = 0
-local lastWalk   = 0
-local lastRandom = 0
 
 -- ══════════════════════════════════════════════
 -- GUI ROOT
@@ -108,7 +105,7 @@ TitleL.Size = UDim2.new(1,-50,0,22); TitleL.Position = UDim2.new(0,12,0,5)
 TitleL.TextXAlignment = Enum.TextXAlignment.Left; TitleL.ZIndex = 7; TitleL.Parent = Header
 
 local SubL = Instance.new("TextLabel")
-SubL.Text = "v8.0  •  Mobile + Fixed"; SubL.Font = Enum.Font.Gotham; SubL.TextSize = 9
+SubL.Text = "v8.0  •  Mobile + Double Jump"; SubL.Font = Enum.Font.Gotham; SubL.TextSize = 9
 SubL.TextColor3 = C.Muted; SubL.BackgroundTransparency = 1
 SubL.Size = UDim2.new(1,-50,0,13); SubL.Position = UDim2.new(0,12,0,27)
 SubL.TextXAlignment = Enum.TextXAlignment.Left; SubL.ZIndex = 7; SubL.Parent = Header
@@ -320,7 +317,7 @@ local function Slider(p, title, minV, maxV, defV, suf, o, cb)
 end
 
 -- ══════════════════════════════════════════════
--- TAB 1 — الرئيسية
+-- TAB 1 — الرئيسية (تم إزالة Auto Parry و Auto Ability)
 -- ══════════════════════════════════════════════
 local sRow = Row(P1,30,1)
 local sDot = Instance.new("Frame")
@@ -345,20 +342,22 @@ fLbl.TextColor3 = C.Accent; fLbl.BackgroundTransparency = 1
 fLbl.Size = UDim2.new(1,0,1,0); fLbl.TextXAlignment = Enum.TextXAlignment.Center
 fLbl.ZIndex = 9; fLbl.Parent = fRow
 
--- Remote status
+-- Remote status (تم تعديل النص)
 local rRow = Row(P1,28,3)
 local rLbl = Instance.new("TextLabel")
 rLbl.Font = Enum.Font.Gotham; rLbl.TextSize = 9; rLbl.BackgroundTransparency = 1
 rLbl.Size = UDim2.new(1,-8,1,0); rLbl.Position = UDim2.new(0,4,0,0)
 rLbl.TextXAlignment = Enum.TextXAlignment.Left; rLbl.ZIndex = 9; rLbl.Parent = rRow
-rLbl.Text = "✅ Auto Parry: تم إزالته"; rLbl.TextColor3 = C.Yellow
+rLbl.Text = "⚙️ Auto Parry & Ability: تم إزالتها"; rLbl.TextColor3 = C.Yellow
+
+SLbl(P1, "  ── الحركة فقط ──", 4)
 
 -- ══════════════════════════════════════════════
--- TAB 2 — حركة (تم إصلاح القفز والمشي والحركة العشوائية)
+-- TAB 2 — حركة (تم الإصلاح)
 -- ══════════════════════════════════════════════
 SLbl(P2, "  ── القفز والمشي ──", 1)
 
-Toggle(P2, "🦘  قفز تلقائي", "يقفز تلقائياً (قفزة واحدة طبيعية)", 2, function(on)
+Toggle(P2, "🦘  قفز تلقائي", "يقفز تلقائياً (قفزتين متتاليتين)", 2, function(on)
     CFG.AutoJump = on
     SetStatus(on and "قفز تلقائي 🦘" or "خامل", on and C.Yellow or nil)
 end)
@@ -394,24 +393,33 @@ pfLbl.TextColor3 = C.Accent; pfLbl.BackgroundTransparency = 1
 pfLbl.Size = UDim2.new(1,0,1,0); pfLbl.TextXAlignment = Enum.TextXAlignment.Center
 pfLbl.ZIndex = 9; pfLbl.Parent = pfRow
 
-Toggle(P3, "⚡  Super Anti-Lag", "يزيل المؤثرات لرفع FPS (30-60+ FPS)", 3, function(on)
+Toggle(P3, "⚡  Super Anti-Lag", "إزالة الألوان + المؤثرات لـ 30-60 FPS", 3, function(on)
     CFG.AntiLag = on
     task.spawn(function()
         pcall(function()
-            Lighting.GlobalShadows = not on
+            -- إزالة الألوان وتحويل كل شيء إلى رمادي
             if on then
+                Lighting.ColorCorrection = Instance.new("ColorCorrectionEffect")
+                Lighting.ColorCorrection.Saturation = -1
+                Lighting.ColorCorrection.Parent = Lighting
+                Lighting.ClockTime = 12
+                Lighting.Brightness = 1
+                Lighting.GlobalShadows = false
                 Lighting.FogEnd = 9e8
                 Lighting.FogStart = 9e8
-                Lighting.Brightness = 2
                 settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
             else
+                if Lighting:FindFirstChild("ColorCorrection") then
+                    Lighting.ColorCorrection:Destroy()
+                end
+                Lighting.GlobalShadows = true
                 Lighting.FogEnd = 100000
                 Lighting.FogStart = 0
                 Lighting.Brightness = 1
                 settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
             end
             
-            -- إزالة المؤثرات فقط
+            -- إزالة المؤثرات
             for _, v in ipairs(workspace:GetDescendants()) do
                 pcall(function()
                     if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") then
@@ -419,6 +427,10 @@ Toggle(P3, "⚡  Super Anti-Lag", "يزيل المؤثرات لرفع FPS (30-60
                     end
                     if v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
                         v.Enabled = not on
+                    end
+                    if on and v:IsA("BasePart") then
+                        v.Material = Enum.Material.SmoothPlastic
+                        v.Reflectance = 0
                     end
                 end)
             end
@@ -563,16 +575,34 @@ local Dirs = {
     Vector3.new(1,0,-1).Unit, Vector3.new(-1,0,1).Unit,
 }
 
+local lastJump   = 0
+local lastWalk   = 0
+local lastRandom = 0
+
 -- ══════════════════════════════════════════════
 -- دالة للتحقق من وجود مباراة حقيقية
 -- ══════════════════════════════════════════════
 local function IsInRealGame()
-    return workspace:FindFirstChild("GameTimer") ~= nil
-        or (Balls and #Balls:GetChildren() > 0)
+    if workspace:FindFirstChild("GameTimer") then
+        return true
+    end
+    
+    if Balls then
+        for _, ball in ipairs(Balls:GetChildren()) do
+            if ball:IsA("BasePart") then
+                local vel = ball.AssemblyLinearVelocity
+                if vel.Magnitude > 10 then
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
 end
 
 -- ══════════════════════════════════════════════
--- MAIN LOOP (القفز والمشي والحركة العشوائية فقط)
+-- MAIN LOOP (قفزتين + حركة فقط داخل الساحة)
 -- ══════════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
     pcall(function()
@@ -585,11 +615,20 @@ RunService.Heartbeat:Connect(function()
         
         local inRealGame = IsInRealGame()
 
-        -- AUTO JUMP (قفزة واحدة طبيعية)
+        -- AUTO JUMP (قفزتين متتاليتين)
         if CFG.AutoJump and now - lastJump >= CFG.JumpInterval then
             lastJump = now
+            -- القفزة الأولى
             if hum:GetState() == Enum.HumanoidStateType.Landed then
                 hum.Jump = true
+                -- القفزة الثانية بعد 0.1 ثانية
+                task.delay(0.1, function()
+                    pcall(function()
+                        if hum and hum.Parent then
+                            hum.Jump = true
+                        end
+                    end)
+                end)
             end
         end
 
@@ -608,10 +647,10 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ══════════════════════════════════════════════
-Log("Dashboard v8.0 (Fixed) تم التحميل ✔", C.Accent)
+Log("Dashboard v8.0 (Double Jump + Gray Anti-Lag) تم التحميل ✔", C.Accent)
 Log("✅ تم إزالة Auto Parry و Auto Ability", C.Yellow)
-Log("✅ Auto Jump: قفزة واحدة طبيعية", C.Green)
+Log("✅ Auto Jump: قفزتين متتاليتين", C.Green)
 Log("✅ Auto Walk: يعمل فقط داخل الساحة", C.Green)
 Log("✅ Random Move: يعمل فقط داخل الساحة", C.Green)
-Log("✅ Anti-Lag: محسن لـ 30-60+ FPS", C.Green)
-print("[BB v8] تم التحميل - جميع المشاكل تم إصلاحها")
+Log("✅ Anti-Lag: إزالة الألوان + مؤثرات لـ 30-60 FPS", C.Green)
+print("[BB v8] loaded ✔ - القفز قفزتين | Anti-Lag رمادي")
