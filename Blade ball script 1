@@ -1,7 +1,7 @@
 -- ╔══════════════════════════════════════════════╗
 -- ║      Blade Ball Dashboard  v8.0              ║
 -- ║  Fixed Parry · Fixed Move · Mobile           ║
--- ║  + Movement ONLY in real arena               ║
+-- ║  + Fixed Movement (Arena Only)               ║
 -- ╚══════════════════════════════════════════════╝
 
 local Players          = game:GetService("Players")
@@ -107,7 +107,7 @@ TitleL.Size = UDim2.new(1,-50,0,22); TitleL.Position = UDim2.new(0,12,0,5)
 TitleL.TextXAlignment = Enum.TextXAlignment.Left; TitleL.ZIndex = 7; TitleL.Parent = Header
 
 local SubL = Instance.new("TextLabel")
-SubL.Text = "v8.0  •  Mobile + Real Arena Only"; SubL.Font = Enum.Font.Gotham; SubL.TextSize = 9
+SubL.Text = "v8.0  •  Mobile + Arena Only"; SubL.Font = Enum.Font.Gotham; SubL.TextSize = 9
 SubL.TextColor3 = C.Muted; SubL.BackgroundTransparency = 1
 SubL.Size = UDim2.new(1,-50,0,13); SubL.Position = UDim2.new(0,12,0,27)
 SubL.TextXAlignment = Enum.TextXAlignment.Left; SubL.ZIndex = 7; SubL.Parent = Header
@@ -332,29 +332,12 @@ sLbl.TextColor3 = C.Muted; sLbl.BackgroundTransparency = 1
 sLbl.Size = UDim2.new(1,-24,1,0); sLbl.Position = UDim2.new(0,22,0,0)
 sLbl.TextXAlignment = Enum.TextXAlignment.Left; sLbl.ZIndex = 9; sLbl.Parent = sRow
 
--- مؤشر المكان
-local locRow = Row(P1,28,2)
-local locDot = Instance.new("Frame")
-locDot.Size = UDim2.new(0,8,0,8); locDot.Position = UDim2.new(0,10,0.5,-4)
-locDot.BackgroundColor3 = C.Yellow; locDot.BorderSizePixel = 0; locDot.ZIndex = 9; locDot.Parent = locRow
-Instance.new("UICorner",locDot).CornerRadius = UDim.new(1,0)
-local locLbl = Instance.new("TextLabel")
-locLbl.Text = "المكان: لوبي"; locLbl.Font = Enum.Font.Gotham; locLbl.TextSize = 10
-locLbl.TextColor3 = C.Muted; locLbl.BackgroundTransparency = 1
-locLbl.Size = UDim2.new(1,-24,1,0); locLbl.Position = UDim2.new(0,22,0,0)
-locLbl.TextXAlignment = Enum.TextXAlignment.Left; locLbl.ZIndex = 9; locLbl.Parent = locRow
-
 local function SetStatus(msg, col)
     sLbl.Text = "الوضع: "..msg
     sDot.BackgroundColor3 = col or C.Muted
 end
 
-local function SetLocation(msg, col)
-    locLbl.Text = "المكان: "..msg
-    locDot.BackgroundColor3 = col or C.Yellow
-end
-
-local fRow = Row(P1,30,3)
+local fRow = Row(P1,30,2)
 local fLbl = Instance.new("TextLabel")
 fLbl.Text = "⚡ FPS: --"; fLbl.Font = Enum.Font.GothamBold; fLbl.TextSize = 12
 fLbl.TextColor3 = C.Accent; fLbl.BackgroundTransparency = 1
@@ -362,7 +345,7 @@ fLbl.Size = UDim2.new(1,0,1,0); fLbl.TextXAlignment = Enum.TextXAlignment.Center
 fLbl.ZIndex = 9; fLbl.Parent = fRow
 
 -- Remote status
-local rRow = Row(P1,28,4)
+local rRow = Row(P1,28,3)
 local rLbl = Instance.new("TextLabel")
 rLbl.Font = Enum.Font.Gotham; rLbl.TextSize = 9; rLbl.BackgroundTransparency = 1
 rLbl.Size = UDim2.new(1,-8,1,0); rLbl.Position = UDim2.new(0,4,0,0)
@@ -373,14 +356,14 @@ else
     rLbl.Text = "❌ Parry: غير موجود"; rLbl.TextColor3 = C.Red
 end
 
-SLbl(P1, "  ── الصد والقدرات ──", 5)
+SLbl(P1, "  ── الصد والقدرات ──", 4)
 
-Toggle(P1, "🛡  Auto Parry", "يصد فوراً عندما تستهدفك الكرة", 6, function(on)
+Toggle(P1, "🛡  Auto Parry", "يصد فوراً عندما تستهدفك الكرة", 5, function(on)
     CFG.AutoParry = on
     SetStatus(on and "Auto Parry ✅" or "خامل", on and C.Green or nil)
 end)
 
-Toggle(P1, "✨  Auto Ability", "يستخدم القدرة عندما تستهدفك الكرة", 7, function(on)
+Toggle(P1, "✨  Auto Ability", "يستخدم القدرة عندما تستهدفك الكرة", 6, function(on)
     CFG.AutoAbility = on
     SetStatus(on and "Auto Ability ✨" or "خامل", on and C.Yellow or nil)
 end)
@@ -399,14 +382,14 @@ Slider(P2, "⏱  فترة القفز", 300, 3000, 1000, " ms", 3, function(v)
     CFG.JumpInterval = v / 1000
 end)
 
-Toggle(P2, "🚶  مشي تلقائي", "يتحرك تلقائياً (فقط في الساحة الحقيقية)", 4, function(on)
+Toggle(P2, "🚶  مشي تلقائي", "يتحرك تلقائياً (فقط داخل الساحة)", 4, function(on)
     CFG.AutoWalk = on
     SetStatus(on and "مشي تلقائي 🚶" or "خامل", on and C.Accent or nil)
 end)
 
 SLbl(P2, "  ── حركة عشوائية ──", 5)
 
-Toggle(P2, "🎲  حركة عشوائية", "يتحرك عشوائياً (فقط في الساحة الحقيقية)", 6, function(on)
+Toggle(P2, "🎲  حركة عشوائية", "يتحرك عشوائياً (فقط داخل الساحة)", 6, function(on)
     CFG.RandomMove = on
 end)
 
@@ -603,66 +586,43 @@ local lastRandom = 0
 local lastAbility = 0
 
 -- ══════════════════════════════════════════════
--- دالة متطورة للتحقق من أن اللاعب في الساحة الحقيقية (وليس التدريب)
+-- دالة متطورة للتحقق من وجود مباراة حقيقية
 -- ══════════════════════════════════════════════
-local function IsInRealArena()
-    -- شرط 1: وجود مؤقت اللعبة (أهم شرط)
-    local hasTimer = workspace:FindFirstChild("GameTimer") ~= nil
-    if hasTimer then
+local function IsInRealGame()
+    -- الطريقة الأكثر دقة: وجود GameTimer (المؤقت)
+    if workspace:FindFirstChild("GameTimer") then
         return true
     end
     
-    -- شرط 2: وجود كرة ووجود لاعبين آخرين قريبين (لأن التدريب عادةً بدون لاعبين)
+    -- طريقة احتياطية: وجود كرة متحركة + لاعبين آخرين
     if Balls then
-        local ballCount = 0
+        local movingBall = false
         for _, ball in ipairs(Balls:GetChildren()) do
-            if ball:IsA("BasePart") and ball:GetAttribute("realBall") == true then
-                ballCount = ballCount + 1
+            if ball:IsA("BasePart") then
+                local vel = ball.AssemblyLinearVelocity
+                if vel.Magnitude > 10 then
+                    movingBall = true
+                    break
+                end
             end
         end
         
-        -- إذا كان هناك كرات حقيقية
-        if ballCount > 0 then
-            -- تحقق من وجود لاعبين آخرين داخل الساحة
+        if movingBall then
+            -- تحقق من وجود لاعبين آخرين قريبين
             local char = LP.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
                 local hrp = char.HumanoidRootPart
-                local nearbyPlayers = 0
+                local playersNear = 0
                 for _, player in ipairs(Players:GetPlayers()) do
                     if player ~= LP and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                         local dist = (hrp.Position - player.Character.HumanoidRootPart.Position).Magnitude
                         if dist < 150 then
-                            nearbyPlayers = nearbyPlayers + 1
+                            playersNear = playersNear + 1
                         end
                     end
                 end
-                -- إذا كان هناك لاعبين آخرين، فأنت في الساحة الحقيقية
-                if nearbyPlayers >= 1 then
-                    return true
-                end
+                return playersNear >= 1
             end
-        end
-    end
-    
-    -- شرط 3: وجود منطقة الساحة (Map أو Arena)
-    local hasArena = workspace:FindFirstChild("Map") ~= nil or workspace:FindFirstChild("Arena") ~= nil
-    if hasArena then
-        -- تحقق من موقع اللاعب (إذا كان في منطقة اللوبي غالباً يكون في إحداثيات معينة)
-        local char = LP.Character
-        if char and char:FindFirstChild("HumanoidRootPart") then
-            local pos = char.HumanoidRootPart.Position
-            -- اللوبي غالباً يكون في إحداثيات منخفضة أو في منطقة محددة
-            if math.abs(pos.X) < 50 and math.abs(pos.Z) < 50 then
-                -- قد يكون في اللوبي، نتأكد من وجود لاعبين
-                local otherPlayers = 0
-                for _, player in ipairs(Players:GetPlayers()) do
-                    if player ~= LP and player.Character then
-                        otherPlayers = otherPlayers + 1
-                    end
-                end
-                return otherPlayers >= 1
-            end
-            return true
         end
     end
     
@@ -670,7 +630,7 @@ local function IsInRealArena()
 end
 
 -- ══════════════════════════════════════════════
--- MAIN LOOP
+-- MAIN LOOP (تم التعديل فقط في شروط الحركة)
 -- ══════════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
     pcall(function()
@@ -681,26 +641,19 @@ RunService.Heartbeat:Connect(function()
         if not hrp or not hum then return end
         local now = tick()
         
-        -- التحقق المتطور
-        local inRealArena = IsInRealArena()
-        
-        -- تحديث مؤشر المكان
-        if inRealArena then
-            SetLocation("الساحة 🎯 (مباراة)", C.Green)
-        else
-            SetLocation("اللوبي 💤 (تدريب/انتظار)", C.Yellow)
-        end
+        -- التحقق من وجود مباراة حقيقية
+        local inRealGame = IsInRealGame()
 
         -- ══════════════════════════════════════
-        -- AUTO PARRY
+        -- AUTO PARRY (تمت إزالة الحركة العنيفة)
         -- ══════════════════════════════════════
         if CFG.AutoParry and ParryRE and Balls then
             for _, ball in ipairs(Balls:GetChildren()) do
                 if ball:IsA("BasePart") and ball:GetAttribute("realBall") == true then
-                    hrp.CFrame = CFrame.new(hrp.Position, ball.Position)
+                    -- تمت إزالة السطر الذي كان يحرك اللاعب بعنف
+                    -- hrp.CFrame = CFrame.new(hrp.Position, ball.Position)  <-- تم حذفه
+                    
                     if char:FindFirstChild("Highlight") then
-                        hrp.CFrame = ball.CFrame * CFrame.new(0, 0,
-                            ball.AssemblyLinearVelocity.Magnitude * -0.5)
                         pcall(function() ParryRE:Fire() end)
                         SetStatus("تم الصد! 🛡", C.Green)
                         Log("صد ✅", C.Green)
@@ -727,29 +680,26 @@ RunService.Heartbeat:Connect(function()
         end
 
         -- ══════════════════════════════════════
-        -- AUTO JUMP (يعمل في كل مكان)
+        -- AUTO JUMP (تم الإصلاح: قفزة واحدة فقط)
         -- ══════════════════════════════════════
         if CFG.AutoJump and now - lastJump >= CFG.JumpInterval then
             lastJump = now
+            -- قفزة واحدة فقط بدون ChangeState
             hum.Jump = true
-            task.spawn(function()
-                task.wait(0.05)
-                pcall(function() hum:ChangeState(Enum.HumanoidStateType.Jumping) end)
-            end)
         end
 
         -- ══════════════════════════════════════
-        -- AUTO WALK (يعمل فقط في الساحة الحقيقية)
+        -- AUTO WALK (يعمل فقط في المباراة الحقيقية)
         -- ══════════════════════════════════════
-        if CFG.AutoWalk and inRealArena and now - lastWalk >= 0.6 then
+        if CFG.AutoWalk and inRealGame and now - lastWalk >= 0.6 then
             lastWalk = now
             hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 22)
         end
 
         -- ══════════════════════════════════════
-        -- RANDOM MOVE (يعمل فقط في الساحة الحقيقية)
+        -- RANDOM MOVE (يعمل فقط في المباراة الحقيقية)
         -- ══════════════════════════════════════
-        if CFG.RandomMove and inRealArena and now - lastRandom >= CFG.MoveInterval then
+        if CFG.RandomMove and inRealGame and now - lastRandom >= CFG.MoveInterval then
             lastRandom = now
             hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 16)
         end
@@ -757,11 +707,10 @@ RunService.Heartbeat:Connect(function()
 end)
 
 -- ══════════════════════════════════════════════
-Log("Dashboard v8.0 (Real Arena Only) تم التحميل ✔", C.Accent)
-Log("⚠️ الحركة تعمل فقط في المباريات الحقيقية", C.Yellow)
+Log("Dashboard v8.0 (Arena Only) تم التحميل ✔", C.Accent)
 if ParryRE then
     Log("✅ Parry: "..ParryRE:GetFullName(), C.Green)
 else
     Log("❌ Parry Remote غير موجود!", C.Red)
 end
-print("[BB v8] loaded ✔ - الحركة تعمل فقط في الساحة الحقيقية")
+print("[BB v8] loaded ✔ - الحركة تعمل فقط في المباراة الحقيقية")
