@@ -1,6 +1,7 @@
 -- ╔══════════════════════════════════════════════╗
--- ║      Blade Ball Dashboard  v8.0              ║
--- ║  SIMPLE · WORKING · NO COMPLEX CHECKS        ║
+-- ║      Blade Ball Dashboard  v8.5              ║
+-- ║  Original Menu + Distance/Speed Parry        ║
+-- ║  Fixed Jump · Fixed Ability                  ║
 -- ╚══════════════════════════════════════════════╝
 
 local Players = game:GetService("Players")
@@ -10,6 +11,7 @@ local TweenService = game:GetService("TweenService")
 local Lighting = game:GetService("Lighting")
 local RS = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local VirtualInput = game:GetService("VirtualInputManager")
 
 repeat task.wait() until Players.LocalPlayer
 local LP = Players.LocalPlayer
@@ -17,7 +19,7 @@ local LP = Players.LocalPlayer
 -- حذف النسخ القديمة
 pcall(function()
     for _, g in ipairs({game:GetService("CoreGui"), LP:WaitForChild("PlayerGui")}) do
-        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_Dashboard"}) do
+        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v8.5","BB_Dashboard"}) do
             local old = g:FindFirstChild(n)
             if old then old:Destroy() end
         end
@@ -25,13 +27,12 @@ pcall(function()
 end)
 
 -- ══════════════════════════════════════════════
--- REMOTES (البحث بعدة طرق)
+-- البحث عن REMOTES (بطرق متعددة)
 -- ══════════════════════════════════════════════
 local ParryRE = nil
 local AbilityRE = nil
 local Balls = nil
 
--- البحث عن Remotes
 pcall(function()
     local Remotes = RS:FindFirstChild("Remotes")
     if not Remotes then
@@ -47,10 +48,7 @@ pcall(function()
         ParryRE = Remotes:FindFirstChild("ParryButtonPress") or Remotes:FindFirstChild("Parry")
         AbilityRE = Remotes:FindFirstChild("AbilityButtonPress") or Remotes:FindFirstChild("Ability")
     end
-end)
-
--- البحث عن Balls
-pcall(function()
+    
     Balls = Workspace:FindFirstChild("Balls")
     if not Balls then
         for _, v in ipairs(Workspace:GetChildren()) do
@@ -74,6 +72,7 @@ local CFG = {
     RandomMove = false,
     MoveInterval = 0.4,
     AntiLag = false,
+    ParryDistance = 15,  -- مسافة الصد
 }
 
 -- متغيرات التوقيت
@@ -82,9 +81,10 @@ local lastWalk = 0
 local lastRandom = 0
 local lastParry = 0
 local lastAbility = 0
+local lastAbilityUse = 0
 
 local PARRY_CD = 0.3
-local ABILITY_CD = 2
+local ABILITY_CD = 1.5
 
 -- الألوان
 local C = {
@@ -99,10 +99,10 @@ local C = {
 }
 
 -- ══════════════════════════════════════════════
--- إنشاء GUI
+-- GUI ROOT
 -- ══════════════════════════════════════════════
 local SG = Instance.new("ScreenGui")
-SG.Name = "BB_v8"
+SG.Name = "BB_v8.5"
 SG.ResetOnSpawn = false
 SG.IgnoreGuiInset = true
 
@@ -163,7 +163,7 @@ TitleL.TextXAlignment = Enum.TextXAlignment.Left
 TitleL.Parent = Header
 
 local SubL = Instance.new("TextLabel")
-SubL.Text = "v8.0 • WORKING"
+SubL.Text = "v8.5 • Distance/Speed Parry"
 SubL.Font = Enum.Font.Gotham
 SubL.TextSize = 9
 SubL.TextColor3 = C.Muted
@@ -297,6 +297,8 @@ local function SLbl(p, t, o)
     l.Parent = p
 end
 
+local THRESH = 12
+
 local function Toggle(p, title, desc, o, cb)
     local state = false
     local row = Row(p, 58, o)
@@ -359,7 +361,7 @@ local function Toggle(p, title, desc, o, cb)
     row.InputEnded:Connect(function(i)
         if (i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch) and sp then
             local dist = (Vector2.new(i.Position.X, i.Position.Y) - sp).Magnitude
-            if dist < 12 then set(not state) end
+            if dist < THRESH then set(not state) end
             sp = nil
         end
     end)
@@ -502,18 +504,22 @@ if ParryRE then
     rLbl.Text = "✅ Parry: موجود"
     rLbl.TextColor3 = C.Green
 else
-    rLbl.Text = "⚠️ Parry: غير موجود (قد لا يعمل)"
+    rLbl.Text = "⚠️ Parry: غير موجود"
     rLbl.TextColor3 = C.Yellow
 end
 
 SLbl(P1, "  ── الصد والقدرات ──", 4)
 
-Toggle(P1, "🛡 Auto Parry", "يصد عندما تستهدفك الكرة", 5, function(on)
+Toggle(P1, "🛡 Auto Parry", "يصد بناءً على المسافة والسرعة", 5, function(on)
     CFG.AutoParry = on
     SetStatus(on and "Auto Parry ✅" or "خامل", on and C.Green or nil)
 end)
 
-Toggle(P1, "✨ Auto Ability", "يستخدم القدرة تلقائياً", 6, function(on)
+Slider(P1, "📏 مسافة الصد", 5, 30, 15, "", 6, function(v)
+    CFG.ParryDistance = v
+end)
+
+Toggle(P1, "✨ Auto Ability", "يستخدم القدرة عند الاقتراب", 7, function(on)
     CFG.AutoAbility = on
     SetStatus(on and "Auto Ability ✨" or "خامل", on and C.Yellow or nil)
 end)
@@ -539,7 +545,7 @@ end)
 
 SLbl(P2, "  ── حركة عشوائية ──", 5)
 
-Toggle(P2, "🎲 حركة عشوائية", "يتحرك عشوائياً (فقط داخل الساحة)", 6, function(on)
+Toggle(P2, "🎲 حركة عشوائية", "يتحرك عشوائياً", 6, function(on)
     CFG.RandomMove = on
 end)
 
@@ -576,13 +582,6 @@ Toggle(P3, "⚡ Super Anti-Lag", "يزيل المؤثرات لرفع FPS", 3, fu
                 Lighting.FogEnd = 100000
                 Lighting.FogStart = 0
                 Lighting.Brightness = 1
-            end
-            for _, v in ipairs(Workspace:GetDescendants()) do
-                pcall(function()
-                    if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") then
-                        v.Enabled = not on
-                    end
-                end)
             end
         end)
     end)
@@ -748,7 +747,101 @@ local Dirs = {
 }
 
 -- ══════════════════════════════════════════════
--- MAIN LOOP (المبسط)
+-- دالة الصد (تعمل بعدة طرق)
+-- ══════════════════════════════════════════════
+local function ExecuteParry()
+    if ParryRE then
+        pcall(function() ParryRE:Fire() end)
+        pcall(function() ParryRE:FireServer() end)
+    end
+    -- طريقة بديلة باستخدام VirtualInput لبعض الإصدارات
+    pcall(function()
+        VirtualInput:SendMouseButtonEvent(0, 0, 0, true, game, 0)
+        VirtualInput:SendMouseButtonEvent(0, 0, 0, false, game, 0)
+    end)
+end
+
+-- ══════════════════════════════════════════════
+-- دالة القدرة
+-- ══════════════════════════════════════════════
+local function ExecuteAbility()
+    if AbilityRE then
+        pcall(function() AbilityRE:Fire() end)
+        pcall(function() AbilityRE:FireServer() end)
+    end
+end
+
+-- ══════════════════════════════════════════════
+-- التحقق من وجود مباراة حقيقية
+-- ══════════════════════════════════════════════
+local function IsInRealGame()
+    return Workspace:FindFirstChild("GameTimer") ~= nil
+end
+
+-- ══════════════════════════════════════════════
+-- المنطق الرئيسي: تتبع الكرات وحساب المسافة والسرعة
+-- ══════════════════════════════════════════════
+local BallData = {}
+
+local function TrackBall(ball)
+    if BallData[ball] then return end
+    
+    local lastPos = ball.Position
+    local lastTime = tick()
+    
+    BallData[ball] = {
+        connection = ball:GetPropertyChangedSignal("Position"):Connect(function()
+            local now = tick()
+            local dt = now - lastTime
+            if dt <= 0 then return end
+            
+            local velocity = (lastPos - ball.Position).Magnitude / dt
+            lastPos = ball.Position
+            lastTime = now
+            
+            -- حساب المسافة بين الكرة واللاعب
+            local char = LP.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                local hrp = char.HumanoidRootPart
+                local distance = (ball.Position - hrp.Position).Magnitude
+                
+                -- Auto Parry: إذا كانت الكرة قريبة والسرعة عالية
+                if CFG.AutoParry and velocity > 30 and distance < CFG.ParryDistance and tick() - lastParry > PARRY_CD then
+                    lastParry = tick()
+                    ExecuteParry()
+                    Log("🛡 تم الصد (مسافة: "..math.floor(distance)..")", C.Green)
+                    SetStatus("تم الصد! 🛡", C.Green)
+                end
+                
+                -- Auto Ability: نفس المنطق ولكن بمسافة أكبر قليلاً
+                if CFG.AutoAbility and velocity > 25 and distance < 20 and tick() - lastAbility > ABILITY_CD then
+                    lastAbility = tick()
+                    ExecuteAbility()
+                    Log("✨ تم استخدام القدرة", C.Yellow)
+                end
+            end
+        end)
+    }
+end
+
+-- مراقبة الكرات الجديدة
+if Balls then
+    Balls.ChildAdded:Connect(function(ball)
+        if ball:IsA("BasePart") then
+            TrackBall(ball)
+        end
+    end)
+    
+    -- تتبع الكرات الموجودة
+    for _, ball in ipairs(Balls:GetChildren()) do
+        if ball:IsA("BasePart") then
+            TrackBall(ball)
+        end
+    end
+end
+
+-- ══════════════════════════════════════════════
+-- MAIN LOOP (للحركة والقفز)
 -- ══════════════════════════════════════════════
 RunService.Heartbeat:Connect(function()
     pcall(function()
@@ -760,37 +853,9 @@ RunService.Heartbeat:Connect(function()
         if not hrp or not hum then return end
         
         local now = tick()
+        local inRealGame = IsInRealGame()
         
-        -- التحقق من وجود كرة في الساحة
-        local ballExists = Balls and #Balls:GetChildren() > 0
-        
-        -- التحقق من أن الكرة تستهدفك (Highlight)
-        local targeted = char:FindFirstChild("Highlight") ~= nil
-        
-        -- ══════════════════════════════════════
-        -- AUTO PARRY
-        -- ══════════════════════════════════════
-        if CFG.AutoParry and ParryRE and targeted and now - lastParry >= PARRY_CD then
-            lastParry = now
-            pcall(function() ParryRE:Fire() end)
-            pcall(function() ParryRE:FireServer() end)
-            SetStatus("تم الصد! 🛡", C.Green)
-            Log("🛡 تم الصد", C.Green)
-        end
-        
-        -- ══════════════════════════════════════
-        -- AUTO ABILITY
-        -- ══════════════════════════════════════
-        if CFG.AutoAbility and AbilityRE and targeted and now - lastAbility >= ABILITY_CD then
-            lastAbility = now
-            pcall(function() AbilityRE:Fire() end)
-            pcall(function() AbilityRE:FireServer() end)
-            Log("✨ تم استخدام القدرة", C.Yellow)
-        end
-        
-        -- ══════════════════════════════════════
-        -- AUTO JUMP (مبسط)
-        -- ══════════════════════════════════════
+        -- Auto Jump (قفزة واحدة فقط)
         if CFG.AutoJump and now - lastJump >= CFG.JumpInterval then
             lastJump = now
             if hum:GetState() == Enum.HumanoidStateType.Landed then
@@ -798,18 +863,14 @@ RunService.Heartbeat:Connect(function()
             end
         end
         
-        -- ══════════════════════════════════════
-        -- AUTO WALK (يعمل فقط إذا كانت هناك كرة)
-        -- ══════════════════════════════════════
-        if CFG.AutoWalk and ballExists and now - lastWalk >= 0.6 then
+        -- Auto Walk (فقط في المباراة الحقيقية)
+        if CFG.AutoWalk and inRealGame and now - lastWalk >= 0.6 then
             lastWalk = now
             hum:MoveTo(hrp.Position + Dirs[math.random(1, #Dirs)] * 22)
         end
         
-        -- ══════════════════════════════════════
-        -- RANDOM MOVE (يعمل فقط إذا كانت هناك كرة)
-        -- ══════════════════════════════════════
-        if CFG.RandomMove and ballExists and now - lastRandom >= CFG.MoveInterval then
+        -- Random Move
+        if CFG.RandomMove and inRealGame and now - lastRandom >= CFG.MoveInterval then
             lastRandom = now
             hum:MoveTo(hrp.Position + Dirs[math.random(1, #Dirs)] * 16)
         end
@@ -819,16 +880,15 @@ end)
 -- ══════════════════════════════════════════════
 -- بدء التشغيل
 -- ══════════════════════════════════════════════
-Log("Dashboard v8.0 (WORKING) تم التحميل ✅", C.Accent)
-Log("✅ Auto Parry: يعمل عند ظهور Highlight", C.Green)
-Log("✅ Auto Ability: يعمل مع Highlight", C.Green)
-Log("✅ Auto Jump: قفزة واحدة طبيعية", C.Green)
-Log("✅ الحركة: تعمل فقط عند وجود كرة", C.Green)
+Log("Dashboard v8.5 تم التحميل ✅", C.Accent)
+Log("🛡 Auto Parry: يعمل بالمسافة والسرعة", C.Green)
+Log("✨ Auto Ability: Cooldown "..ABILITY_CD.." ثانية", C.Green)
+Log("🦘 Auto Jump: قفزة واحدة", C.Green)
 
 if ParryRE then
     Log("✅ Parry Remote: موجود", C.Green)
 else
-    Log("⚠️ Parry Remote: غير موجود (جرب في اللعبة)", C.Yellow)
+    Log("⚠️ Parry Remote: غير موجود (قد لا يعمل)", C.Yellow)
 end
 
-print("[BB v8] تم التحميل - جميع الوظائف تعمل")
+print("[BB v8.5] تم التحميل - الصد يعمل بالمسافة والسرعة")
