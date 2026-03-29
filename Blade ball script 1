@@ -1,138 +1,163 @@
--- ╔══════════════════════════════════════════════╗
--- ║      Blade Ball Omega  v10.0                 ║
--- ║  Logic: Move ONLY in Arena + Moving Ball     ║
--- ╚══════════════════════════════════════════════╝
+-- Blade Ball Script from Scratch
 
-local RunService = game:GetService("RunService")
-local UserInputService = game:GetService("UserInputService")
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-local FileName = "AL_AMIR_Omega_Settings.json"
+-- Save Data to File
+local saveData = {}
+local saveFile = "saveData.txt"
 
--- [1] الإعدادات الافتراضية والحفظ
-local CFG = { 
-    AutoJump = false, AutoWalk = false, AntiLag = false, 
-    WalkSpeed = 22, JumpInterval = 1.0 
+function saveDataToFile()
+    local file = io.open(saveFile, "w")
+    if file then
+        file:write(json.encode(saveData))
+        file:close()
+    end
+end
+
+function loadDataFromFile()
+    local file = io.open(saveFile, "r")
+    if file then
+        saveData = json.decode(file:read("*a"))
+        file:close()
+    end
+end
+
+-- Load Save Data
+loadDataFromFile()
+
+-- Random Walking
+local player = {
+    x = 0,
+    y = 0,
+    speed = 5,
+    jumpSpeed = 10,
+    gravity = 0.5,
+    isJumping = false,
+    isalog = false,
+    isDead = false,
+    isRunning = false,
 }
 
-local function Save() if writefile then writefile(FileName, HttpService:JSONEncode(CFG)) end end
-local function Load() if isfile and isfile(FileName) then local d = HttpService:JSONDecode(readfile(FileName)) for k,v in pairs(d) do CFG[k]=v end end end
-Load()
+function player:jump()
+    if not self.isJumping and not self.isDead then
+        self.isJumping = true
+        self.vy = -self.jumpSpeed
+    end
+end
 
--- [2] منطق الأمان والتحقق (الآلية الصحيحة)
-local function IsInMatch()
-    -- التحقق من الموقع: إذا كان اللاعب في اللوبي (غالباً إحداثيات Y مرتفعة أو منطقة معينة)
-    -- هذا الفلتر يضمن عدم التحرك إلا في الساحة
-    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    
-    local Balls = workspace:FindFirstChild("Balls")
-    if not Balls or #Balls:GetChildren() == 0 then return false end
-    
-    for _, ball in ipairs(Balls:GetChildren()) do
-        -- شرط الكرة المتحركة (سرعة > 10)
-        if ball:IsA("BasePart") and ball.AssemblyLinearVelocity.Magnitude > 10 then
-            return true
+function player:update(dt)
+    if not self.isDead then
+        if self.isJumping then
+            self.vy = self.vy + self.gravity * dt
+            self.y = self.y + self.vy * dt
+            if self.y >= 100 then
+                self.isJumping = false
+                self.y = 100
+            end
+        end
+        if self.isRunning then
+            self.x = self.x + self.speed * dt
         end
     end
-    return false
 end
 
-local lastJump, lastWalk = 0, 0
-local Dirs = {Vector3.new(1,0,0), Vector3.new(-1,0,0), Vector3.new(0,0,1), Vector3.new(0,0,-1)}
+-- Otto Two Jumps
+local otto = {
+    x = 0,
+    y = 0,
+    speed = 5,
+    jumpSpeed = 10,
+    gravity = 0.5,
+    isJumping = false,
+    isalog = false,
+    isDead = false,
+    isRunning = false,
+    jumpCount = 0,
+}
 
-RunService.Heartbeat:Connect(function()
-    if not IsInMatch() then return end -- "يتوقف فوراً" حسب البروتوكول
-
-    local char = LP.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp then return end
-
-    local now = tick()
-    
-    -- تطبيق سرعة الحركة المخصصة
-    hum.WalkSpeed = CFG.WalkSpeed
-
-    -- القفز الذكي
-    if CFG.AutoJump and now - lastJump >= CFG.JumpInterval then
-        lastJump = now
-        hum.Jump = true
+function otto:jump()
+    if not self.isJumping and not self.isDead then
+        self.isJumping = true
+        self.vy = -self.jumpSpeed
+        self.jumpCount = self.jumpCount + 1
+        if self.jumpCount == 2 then
+            self.isalog = true
+        end
     end
+end
 
-    -- المشي التلقائي
-    if CFG.AutoWalk and now - lastWalk >= 0.5 then
-        lastWalk = now
-        hum:MoveTo(hrp.Position + Dirs[math.random(1, #Dirs)] * 15)
+function otto:update(dt)
+    if not self.isDead then
+        if self.isJumping then
+            self.vy = self.vy + self.gravity * dt
+            self.y = self.y + self.vy * dt
+            if self.y >= 100 then
+                self.isJumping = false
+                self.y = 100
+            end
+        end
+        if self.isRunning then
+            self.x = self.x + self.speed * dt
+        end
     end
-end)
-
--- [3] الواجهة الرسومية (UI) - ثلاث خانات مصلحة
-local SG = Instance.new("ScreenGui", game:GetService("CoreGui"))
-local Main = Instance.new("Frame", SG)
-Main.Size = UDim2.new(0, 340, 0, 360)
-Main.Position = UDim2.new(0.5, -170, 0.5, -180)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-Instance.new("UICorner", Main)
-
--- Header & Controls
-local Header = Instance.new("Frame", Main)
-Header.Size = UDim2.new(1, 0, 0, 35); Header.BackgroundTransparency = 1
-
-local Close = Instance.new("TextButton", Header)
-Close.Text = "✕"; Close.Size = UDim2.new(0, 25, 0, 25); Close.Position = UDim2.new(1, -30, 0, 5)
-Close.BackgroundColor3 = Color3.fromRGB(200, 50, 50); Instance.new("UICorner", Close)
-Close.MouseButton1Click:Connect(function() SG:Destroy() end)
-
--- Tabs
-local TabBar = Instance.new("Frame", Main)
-TabBar.Size = UDim2.new(1, -20, 0, 35); TabBar.Position = UDim2.new(0, 10, 0, 40); TabBar.BackgroundTransparency = 1
-Instance.new("UIListLayout", TabBar).FillDirection = Enum.FillDirection.Horizontal
-
-local Content = Instance.new("Frame", Main)
-Content.Size = UDim2.new(1, -20, 1, -90); Content.Position = UDim2.new(0, 10, 0, 80); Content.BackgroundTransparency = 1
-
-local TPages = {}
-local function CreateTab(name, icon, active)
-    local b = Instance.new("TextButton", TabBar); b.Size = UDim2.new(0.33, -2, 1, 0); b.Text = icon
-    b.BackgroundColor3 = active and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(25, 25, 35); b.TextColor3 = Color3.new(1,1,1)
-    Instance.new("UICorner", b)
-
-    local p = Instance.new("ScrollingFrame", Content); p.Size = UDim2.new(1, 0, 1, 0); p.Visible = active; p.BackgroundTransparency = 1
-    p.AutomaticCanvasSize = Enum.AutomaticSize.Y; Instance.new("UIListLayout", p).Padding = UDim.new(0, 8)
-
-    b.MouseButton1Click:Connect(function()
-        for k, v in pairs(TPages) do v.Visible = (k == name) end
-        for _, btn in pairs(TabBar:GetChildren()) do if btn:IsA("TextButton") then btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35) end end
-        b.BackgroundColor3 = Color3.fromRGB(99, 102, 241)
-    end)
-    TPages[name] = p; return p
 end
 
-local P1 = CreateTab("Home", "🏠 الرئيسية", true)
-local P2 = CreateTab("Move", "🎮 حركة", false)
-local P3 = CreateTab("Perf", "⚡ أداء", false)
-
--- Toggle Function
-local function AddToggle(parent, text, key)
-    local f = Instance.new("Frame", parent); f.Size = UDim2.new(1, 0, 0, 45); f.BackgroundColor3 = Color3.fromRGB(25, 25, 35); Instance.new("UICorner", f)
-    local lbl = Instance.new("TextLabel", f); lbl.Text = "  "..text; lbl.Size = UDim2.new(0.7,0,1,0); lbl.TextColor3 = Color3.new(1,1,1); lbl.BackgroundTransparency = 1; lbl.TextXAlignment = Enum.TextXAlignment.Left
-    local btn = Instance.new("TextButton", f); btn.Size = UDim2.new(0, 50, 0, 25); btn.Position = UDim2.new(1, -60, 0.5, -12); Instance.new("UICorner", btn)
-    local function up() btn.Text = CFG[key] and "ON" or "OFF"; btn.BackgroundColor3 = CFG[key] and Color3.fromRGB(99, 102, 241) or Color3.fromRGB(50,50,60) end
-    up(); btn.MouseButton1Click:Connect(function() CFG[key] = not CFG[key]; up(); Save() end)
+-- Super Anti Lag Magic
+function update(dt)
+    player:update(dt)
+    otto:update(dt)
+    if player.isJumping then
+        player.isalog = true
+    end
+    if otto.isJumping then
+        otto.isalog = true
+    end
 end
 
--- توزيع الأزرار
-AddToggle(P1, "نظام التشغيل التلقائي", "AntiLag")
-AddToggle(P2, "القفز التلقائي الذكي", "AutoJump")
-AddToggle(P2, "المشي التلقائي الذكي", "AutoWalk")
-AddToggle(P3, "Super Anti-Lag", "AntiLag")
+-- Close Script Button and Minimize User Interface
+function closeScript()
+    saveDataToFile()
+    os.execute("taskkill /im lua.exe")
+end
 
--- Draggable Logic
-local drag, startPos, startFramePos
-Header.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = true; startPos = i.Position; startFramePos = Main.Position end end)
-UserInputService.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - startPos; Main.Position = UDim2.new(startFramePos.X.Scale, startFramePos.X.Offset + d.X, startFramePos.Y.Scale, startFramePos.Y.Offset + d.Y) end end)
-UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
+function minimizeUI()
+    os.execute("taskkill /im lua.exe")
+    os.execute("start lua.exe")
+end
 
-print("[BB v10.0] Omega Intelligence Loaded for AL-AMIR!")
+-- Phone UI
+function phoneUI()
+    print("Phone UI")
+    print("1. Close Script")
+    print("2. Minimize UI")
+    print("3. Save Data")
+    local choice = io.read()
+    if choice == "1" then
+        closeScript()
+    elseif choice == "2" then
+        minimizeUI()
+    elseif choice == "3" then
+        saveDataToFile()
+    end
+end
+
+-- Main Loop
+function love.update(dt)
+    update(dt)
+end
+
+function love.draw()
+    -- Draw player and otto
+    love.graphics.print("Player: " .. player.x .. ", " .. player.y, 10, 10)
+    love.graphics.print("Otto: " .. otto.x .. ", " .. otto.y, 10, 20)
+    -- Draw UI
+    phoneUI()
+end
+
+function love.keypressed(key)
+    if key == "space" then
+        player:jump()
+    elseif key == "r" then
+        otto:jump()
+    elseif key == "escape" then
+        closeScript()
+    end
+end
