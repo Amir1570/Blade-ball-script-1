@@ -1,40 +1,44 @@
-# Blade ball script v8.3
+// Complete v8.3 script
 
-## Updates
+// Fix walk after death using Y position check
+function checkWalkAfterDeath(player) {
+    if (player.y < 0) { // Adjust condition based on your game logic
+        player.canWalk = false;
+    } else {
+        player.canWalk = true;
+    }
+}
 
-1. **IsInRealGame with Y Position Check**: 
-   - Fixed the walk after death issue.
+// Improve double jump with 0.2s delay
+let canDoubleJump = true;
+let jumpDelay = 200; // milliseconds
 
-2. **AutoJump with 0.2s Delay**: 
-   - Improved the double jump functionality.
+function doubleJump(player) {
+    if (player.isJumping && canDoubleJump) {
+        setTimeout(() => {
+            player.jump();
+            canDoubleJump = false; // Prevent further jumps until reset
+        }, jumpDelay);
+    }
+}
 
-3. **Improved Anti-Lag System**: 
-   - Enhanced performance for smoother gameplay.
+// Add inGame check to all movement functions
+function movePlayer(player, direction) {
+    if (player.inGame) {
+        // Movement logic here
+        player.x += direction;
+    }
+}
 
-## Script Content
+function jumpPlayer(player) {
+    if (player.inGame) {
+        player.jump();
+    }
+}
 
-```lua
-function IsInRealGame()
-    local playerY = GetPlayerYPosition()
-    if playerY > 0 then
-        return true
-    end
-    return false
-end
-
-function AutoJump()
-    if IsInRealGame() then
-        wait(0.2)  -- Delay added for better double jump
-        Jump()
-    end
-end
-
--- Anti-Lag Improvements
-function AntiLag()
-    -- Implementation of anti-lag logic
-    -- ... (improved code goes here)
-end
-```
-
----
-This version improves the overall stability and responsiveness of the game script.
+// Reset double jump when the player lands
+function resetDoubleJump(player) {
+    if (player.isGrounded) {
+        canDoubleJump = true;
+    }
+}
