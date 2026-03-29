@@ -1,68 +1,113 @@
--- [[ FLATTING ICON & UI TOGGLE SYSTEM ]] --
+-- [[ BLADE BALL ULTIMATE ENGINE - FULL FIX ]] --
+local Player = game.Players.LocalPlayer
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local CoreGui = game:GetService("CoreGui")
 
--- التأكد من وجود الواجهة الرئيسية (الافتراض أنها مسماة MainFrame في السكربت السابق)
--- local MainFrame = ... (يتم دمج هذا الكود مع السكربت الكامل)
+-- [1] إدارة الواجهة (UI Management)
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "BladeBall_Final_Fix"
+ScreenGui.ResetOnSpawn = false
+pcall(function() ScreenGui.Parent = CoreGui end)
+if not ScreenGui.Parent then ScreenGui.Parent = Player:WaitForChild("PlayerGui") end
 
--- [1] إنشاء ScreenGui مستقل للزر العائم
-local IconGui = Instance.new("ScreenGui", CoreGui)
-IconGui.Name = "FloatingIconEngine"
+-- [2] المتغيرات المنطقية (Logic States)
+local Config = {
+    Walking = false,
+    DoubleJump = true,
+    AntiLag = false
+}
+local JumpCount = 0
 
--- [2] إنشاء الزر العائم (Mobile Optimized)
-local FloatingBtn = Instance.new("TextButton", IconGui)
-FloatingBtn.Size = UDim2.new(0, 50, 0, 50) -- حجم مناسب للمس
-FloatingBtn.Position = UDim2.new(0.1, 0, 0.5, -25) -- الموقع الافتراضي
-FloatingBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-FloatingBtn.Text = "B" -- اختصار Blade Ball
-FloatingBtn.TextColor3 = Color3.new(1, 1, 1)
-FloatingBtn.TextSize = 20
-FloatingBtn.Active = true
+-- [3] الحاوية الرئيسية (Main Container)
+local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Size = UDim2.new(0, 200, 0, 250)
+MainFrame.Position = UDim2.new(0.5, -100, 0.5, -125)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.Visible = false -- تبدأ مخفية وتظهر بالزر
+MainFrame.Active = true
+MainFrame.Draggable = true
 
--- إضافة حواف دائرية للجمالية
-local UICorner = Instance.new("UICorner", FloatingBtn)
-UICorner.CornerRadius = UDim.new(0.5, 0) -- دائرة كاملة
+-- [4] الزر العائم (Floating Toggle)
+local MenuBtn = Instance.new("TextButton", ScreenGui)
+MenuBtn.Size = UDim2.new(0, 55, 0, 55)
+MenuBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
+MenuBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
+MenuBtn.Text = "OPEN"
+MenuBtn.Font = Enum.Font.GothamBold
+local Corner = Instance.new("UICorner", MenuBtn)
+Corner.CornerRadius = UDim.new(1, 0)
 
--- [3] منطق السحب (Dragging Logic for Mobile)
-local dragging
-local dragInput
-local dragStart
-local startPos
+MenuBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+    MenuBtn.Text = MainFrame.Visible and "CLOSE" or "OPEN"
+end)
 
-local function update(input)
-    local delta = input.Position - dragStart
-    FloatingBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+-- [5] وظائف الميزات (Feature Functions)
+local function CreateOption(text, pos, callback)
+    local b = Instance.new("TextButton", MainFrame)
+    b.Size = UDim2.new(0.9, 0, 0, 45)
+    b.Position = UDim2.new(0.05, 0, 0, pos)
+    b.Text = text
+    b.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    b.TextColor3 = Color3.new(1,1,1)
+    b.MouseButton1Click:Connect(function() callback(b) end)
 end
 
-FloatingBtn.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = FloatingBtn.Position
+-- ميزة المشي (Random Walk)
+CreateOption("Random Walk: OFF", 50, function(btn)
+    Config.Walking = not Config.Walking
+    btn.Text = "Random Walk: " .. (Config.Walking and "ON" or "OFF")
+    btn.BackgroundColor3 = Config.Walking and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
+end)
 
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
+-- ميزة القفز (Double Jump)
+CreateOption("Double Jump: ON", 110, function(btn)
+    Config.DoubleJump = not Config.DoubleJump
+    btn.Text = "Double Jump: " .. (Config.DoubleJump and "ON" or "OFF")
+    btn.BackgroundColor3 = Config.DoubleJump and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
+end)
+
+-- ميزة تقليل اللاغ (Anti-Lag)
+CreateOption("Super Anti-Lag", 170, function(btn)
+    Config.AntiLag = true
+    btn.Text = "Optimized!"
+    btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+    for _, v in pairs(game:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
+        if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic end
     end
 end)
 
-FloatingBtn.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
+-- [6] المحركات التشغيلية (Execution Loops)
+RunService.Heartbeat:Connect(function()
+    local Char = Player.Character
+    local Hum = Char and Char:FindFirstChild("Humanoid")
+    
+    -- نظام المشي
+    if Config.Walking and Hum and Hum.Health > 0 then
+        if not Hum.WalkToPart then
+            local MovePos = Char.PrimaryPart.Position + Vector3.new(math.random(-20, 20), 0, math.random(-20, 20))
+            Hum:MoveTo(MovePos)
+        end
+    end
+    
+    -- ريست القفز
+    if Hum and Hum:GetState() == Enum.HumanoidStateType.Landed then
+        JumpCount = 0
     end
 end)
 
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
+UserInputService.JumpRequest:Connect(function()
+    if Config.DoubleJump then
+        local Char = Player.Character
+        local Hum = Char and Char:FindFirstChild("Humanoid")
+        if Hum and JumpCount < 2 then
+            Hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            JumpCount = JumpCount + 1
+        end
     end
 end)
 
--- [4] منطق التبديل (Toggle GUI Visibility)
-FloatingBtn.MouseButton1Click:Connect(function()
-    if MainFrame then
-        MainFrame.Visible = not MainFrame.Visible
-    end
-end)
+-- رسالة تأكيد التشغيل في الـ Console
+print("Blade Ball Engine Loaded Successfully via Delta")
