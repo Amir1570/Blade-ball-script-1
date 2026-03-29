@@ -1,113 +1,115 @@
--- [[ BLADE BALL ULTIMATE ENGINE - FULL FIX ]] --
-local Player = game.Players.LocalPlayer
+-- [[ OMEGA-Z REBUILT ENGINE: TOTAL FIX ]] --
+local Player = game:GetService("Players").LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
 
--- [1] إدارة الواجهة (UI Management)
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "BladeBall_Final_Fix"
+-- حذف أي نسخ قديمة لتجنب التداخل
+if PlayerGui:FindFirstChild("AL_AMIR_ENGINE") then
+    PlayerGui.AL_AMIR_ENGINE:Destroy()
+end
+
+-- [1] الحاوية الأساسية (Top-Level Container)
+local ScreenGui = Instance.new("ScreenGui", PlayerGui)
+ScreenGui.Name = "AL_AMIR_ENGINE"
 ScreenGui.ResetOnSpawn = false
-pcall(function() ScreenGui.Parent = CoreGui end)
-if not ScreenGui.Parent then ScreenGui.Parent = Player:WaitForChild("PlayerGui") end
+ScreenGui.DisplayOrder = 999 -- ضمان الظهور فوق كل شيء
 
--- [2] المتغيرات المنطقية (Logic States)
-local Config = {
-    Walking = false,
-    DoubleJump = true,
-    AntiLag = false
-}
-local JumpCount = 0
+-- [2] الزر العائم (The B Button)
+local FloatingBtn = Instance.new("TextButton", ScreenGui)
+FloatingBtn.Name = "MainTrigger"
+FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
+FloatingBtn.Position = UDim2.new(0.1, 0, 0.4, 0)
+FloatingBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 120)
+FloatingBtn.Text = "B"
+FloatingBtn.TextColor3 = Color3.new(0,0,0)
+FloatingBtn.TextSize = 25
+FloatingBtn.Active = true
+FloatingBtn.Draggable = true -- سحب الزر
 
--- [3] الحاوية الرئيسية (Main Container)
+local UICorner = Instance.new("UICorner", FloatingBtn)
+UICorner.CornerRadius = UDim.new(1, 0)
+
+-- [3] الإطار الرئيسي (The Real Menu)
 local MainFrame = Instance.new("Frame", ScreenGui)
+MainFrame.Name = "ControlPanel"
 MainFrame.Size = UDim2.new(0, 200, 0, 250)
 MainFrame.Position = UDim2.new(0.5, -100, 0.5, -125)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-MainFrame.Visible = false -- تبدأ مخفية وتظهر بالزر
-MainFrame.Active = true
-MainFrame.Draggable = true
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 120)
+MainFrame.Visible = false -- يبدأ مخفياً
 
--- [4] الزر العائم (Floating Toggle)
-local MenuBtn = Instance.new("TextButton", ScreenGui)
-MenuBtn.Size = UDim2.new(0, 55, 0, 55)
-MenuBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
-MenuBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-MenuBtn.Text = "OPEN"
-MenuBtn.Font = Enum.Font.GothamBold
-local Corner = Instance.new("UICorner", MenuBtn)
-Corner.CornerRadius = UDim.new(1, 0)
+-- [4] المتغيرات التقنية
+local Config = { Walking = false, Jump = true }
+local JumpCount = 0
 
-MenuBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
-    MenuBtn.Text = MainFrame.Visible and "CLOSE" or "OPEN"
-end)
-
--- [5] وظائف الميزات (Feature Functions)
-local function CreateOption(text, pos, callback)
+-- [5] إضافة الأزرار داخل الإطار (Internal UI Elements)
+local function AddButton(txt, yPos, callback)
     local b = Instance.new("TextButton", MainFrame)
     b.Size = UDim2.new(0.9, 0, 0, 45)
-    b.Position = UDim2.new(0.05, 0, 0, pos)
-    b.Text = text
+    b.Position = UDim2.new(0.05, 0, 0, yPos)
+    b.Text = txt
     b.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
     b.TextColor3 = Color3.new(1,1,1)
+    b.Font = Enum.Font.Gotham
     b.MouseButton1Click:Connect(function() callback(b) end)
 end
 
--- ميزة المشي (Random Walk)
-CreateOption("Random Walk: OFF", 50, function(btn)
+AddButton("Auto Walk: OFF", 20, function(self)
     Config.Walking = not Config.Walking
-    btn.Text = "Random Walk: " .. (Config.Walking and "ON" or "OFF")
-    btn.BackgroundColor3 = Config.Walking and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
+    self.Text = "Auto Walk: " .. (Config.Walking and "ON" or "OFF")
+    self.BackgroundColor3 = Config.Walking and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
 end)
 
--- ميزة القفز (Double Jump)
-CreateOption("Double Jump: ON", 110, function(btn)
-    Config.DoubleJump = not Config.DoubleJump
-    btn.Text = "Double Jump: " .. (Config.DoubleJump and "ON" or "OFF")
-    btn.BackgroundColor3 = Config.DoubleJump and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(50, 50, 50)
+AddButton("Double Jump: ON", 80, function(self)
+    Config.Jump = not Config.Jump
+    self.Text = "Double Jump: " .. (Config.Jump and "ON" or "OFF")
 end)
 
--- ميزة تقليل اللاغ (Anti-Lag)
-CreateOption("Super Anti-Lag", 170, function(btn)
-    Config.AntiLag = true
-    btn.Text = "Optimized!"
-    btn.BackgroundColor3 = Color3.fromRGB(0, 150, 255)
+AddButton("Anti-Lag Magic", 140, function(self)
+    self.Text = "Optimizing..."
     for _, v in pairs(game:GetDescendants()) do
         if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
-        if v:IsA("BasePart") then v.Material = Enum.Material.SmoothPlastic end
     end
+    wait(1)
+    self.Text = "Lag Fixed!"
 end)
 
--- [6] المحركات التشغيلية (Execution Loops)
+AddButton("CLOSE SCRIPT", 200, function()
+    ScreenGui:Destroy()
+end)
+
+-- [6] منطق التبديل (Toggle UI)
+FloatingBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- [7] المحرك التنفيذي (Core Logic)
 RunService.Heartbeat:Connect(function()
     local Char = Player.Character
     local Hum = Char and Char:FindFirstChild("Humanoid")
     
-    -- نظام المشي
+    -- المشي العشوائي
     if Config.Walking and Hum and Hum.Health > 0 then
-        if not Hum.WalkToPart then
-            local MovePos = Char.PrimaryPart.Position + Vector3.new(math.random(-20, 20), 0, math.random(-20, 20))
-            Hum:MoveTo(MovePos)
+        if Hum.MoveDirection.Magnitude == 0 then
+            local Target = Char.PrimaryPart.Position + Vector3.new(math.random(-25, 25), 0, math.random(-25, 25))
+            Hum:MoveTo(Target)
         end
     end
     
-    -- ريست القفز
+    -- تصفير القفز
     if Hum and Hum:GetState() == Enum.HumanoidStateType.Landed then
         JumpCount = 0
     end
 end)
 
 UserInputService.JumpRequest:Connect(function()
-    if Config.DoubleJump then
-        local Char = Player.Character
-        local Hum = Char and Char:FindFirstChild("Humanoid")
+    if Config.Jump then
+        local Hum = Player.Character and Player.Character:FindFirstChild("Humanoid")
         if Hum and JumpCount < 2 then
             Hum:ChangeState(Enum.HumanoidStateType.Jumping)
             JumpCount = JumpCount + 1
         end
     end
 end)
-
--- رسالة تأكيد التشغيل في الـ Console
-print("Blade Ball Engine Loaded Successfully via Delta")
