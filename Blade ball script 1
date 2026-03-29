@@ -1,45 +1,93 @@
--- ╔══════════════════════════════════════════════╗
--- ║      Blade Ball Dashboard  v8.3 FINAL        ║
--- ║  Full Menu · Fixed Walk · Fixed Anti-Lag     ║
--- ╚══════════════════════════════════════════════╝
+-- ╔══════════════════════════════════════════════════════════════════╗
+-- ║         Blade Ball Dashboard v8.3 FINAL                         ║
+-- ║  Full Structure Understanding · Optimized Anti-Lag              ║
+-- ║  Fixed Walk After Death · Double Jump · Map Cleaner             ║
+-- ╚══════════════════════════════════════════════════════════════════╝
 
-local Players          = game:GetService("Players")
-local RunService       = game:GetService("RunService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local TweenService     = game:GetService("TweenService")
-local Lighting         = game:GetService("Lighting")
-local RS               = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local RS = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local CoreGui = game:GetService("CoreGui")
 
 repeat task.wait() until Players.LocalPlayer
 local LP = Players.LocalPlayer
 
--- حذف نسخ قديمة
+-- ==============================================
+-- إزالة النسخ القديمة
+-- ==============================================
 pcall(function()
-    for _, g in ipairs({game:GetService("CoreGui"), LP:WaitForChild("PlayerGui")}) do
-        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v81","BB_v82","BB_v83"}) do
+    for _, g in ipairs({CoreGui, LP:WaitForChild("PlayerGui")}) do
+        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v81","BB_v82","BB_v83","BB_v84","BB_Dashboard"}) do
             local old = g:FindFirstChild(n)
             if old then old:Destroy() end
         end
     end
 end)
 
--- ══════════════════════════════════════════════
--- REMOTES
--- ══════════════════════════════════════════════
-local Remotes = RS:WaitForChild("Remotes", 10)
-local Balls   = workspace:WaitForChild("Balls", 10)
+-- ==============================================
+-- البحث عن REMOTES والكرات (بطرق متعددة)
+-- ==============================================
+local ParryRE = nil
+local AbilityRE = nil
+local Balls = nil
+local Remotes = nil
 
--- ══════════════════════════════════════════════
--- SETTINGS
--- ══════════════════════════════════════════════
+pcall(function()
+    Remotes = RS:FindFirstChild("Remotes")
+    if not Remotes then
+        for _, v in ipairs(RS:GetChildren()) do
+            if v.Name:lower():find("remote") then
+                Remotes = v
+                break
+            end
+        end
+    end
+    
+    if Remotes then
+        ParryRE = Remotes:FindFirstChild("ParryButtonPress") or Remotes:FindFirstChild("Parry")
+        AbilityRE = Remotes:FindFirstChild("AbilityButtonPress") or Remotes:FindFirstChild("Ability")
+    end
+    
+    Balls = Workspace:FindFirstChild("Balls")
+    if not Balls then
+        for _, v in ipairs(Workspace:GetChildren()) do
+            if v.Name:lower():find("ball") then
+                Balls = v
+                break
+            end
+        end
+    end
+end)
+
+-- ==============================================
+-- الإعدادات
+-- ==============================================
 local CFG = {
     AutoJump     = false,
     JumpInterval = 1.0,
     AutoWalk     = false,
     RandomMove   = false,
+    MoveInterval = 0.4,
     AntiLag      = false,
 }
 
+-- الألوان
+local C = {
+    BG     = Color3.fromRGB(10, 10, 16),
+    Card   = Color3.fromRGB(18, 18, 28),
+    Accent = Color3.fromRGB(99, 102, 241),
+    Green  = Color3.fromRGB(34, 197, 94),
+    Red    = Color3.fromRGB(239, 68, 68),
+    Yellow = Color3.fromRGB(251, 191, 36),
+    Text   = Color3.fromRGB(220, 220, 255),
+    Muted  = Color3.fromRGB(75, 75, 110),
+}
+
+-- متغيرات التوقيت
 local lastJump   = 0
 local lastWalk   = 0
 local lastRandom = 0
@@ -48,79 +96,106 @@ local lastRandom = 0
 local ColorCorrection = nil
 local antiLagConnection = nil
 
--- الألوان
-local C = {
-    BG     = Color3.fromRGB(10,  10,  16),
-    Card   = Color3.fromRGB(18,  18,  28),
-    Accent = Color3.fromRGB(99,  102, 241),
-    Green  = Color3.fromRGB(34,  197, 94),
-    Red    = Color3.fromRGB(239, 68,  68),
-    Yellow = Color3.fromRGB(251, 191, 36),
-    Text   = Color3.fromRGB(220, 220, 255),
-    Muted  = Color3.fromRGB(75,  75,  110),
-}
-
--- ══════════════════════════════════════════════
--- IsInRealGame (Y position check)
--- ══════════════════════════════════════════════
-local function IsInRealGame()
+-- ==============================================
+-- الدالة الأساسية: تحديد حالة اللاعب (من الهيكل الذي استنتجناه)
+-- ==============================================
+-- حالات اللاعب:
+-- "Lobby"           - في اللوبي (تحت الخريطة، Y < -50)
+-- "Spectating"      - ميت/مشاهدة (Health <= 0 أو وجود GameTimer بدون Highlight)
+-- "InGame_Targeted" - في المباراة والكرة تستهدفك (Highlight موجود)
+-- "InGame_NotTargeted" - في المباراة والكرة لا تستهدفك (كرة متحركة فقط)
+-- ==============================================
+local function GetPlayerState()
     local char = LP.Character
-    if not char then return false end
+    if not char then return "Lobby" end
     
     local hum = char:FindFirstChild("Humanoid")
-    if not hum or hum.Health <= 0 then return false end
-    
     local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
     
-    -- منطقة اللوبي تكون تحت الخريطة (Y منخفض)
-    if hrp.Position.Y < -50 then 
-        return false 
+    -- 1. ميت أو مشاهدة
+    if not hum or hum.Health <= 0 then
+        return "Spectating"
     end
     
+    -- 2. اللوبي: تحت الخريطة (Y < -50)
+    if hrp and hrp.Position.Y < -50 then
+        return "Lobby"
+    end
+    
+    -- 3. وجود كرة متحركة في الساحة (دليل على وجود مباراة)
+    local hasMovingBall = false
     if Balls then
         for _, ball in ipairs(Balls:GetChildren()) do
-            if ball:IsA("BasePart") and ball:GetAttribute("realBall") == true then
-                if ball.AssemblyLinearVelocity.Magnitude > 10 then
-                    return true
+            if ball:IsA("BasePart") then
+                local vel = ball.AssemblyLinearVelocity
+                if vel.Magnitude > 10 then
+                    hasMovingBall = true
+                    break
                 end
             end
         end
     end
     
-    return false
+    if not hasMovingBall then
+        return "Lobby"
+    end
+    
+    -- 4. التحقق من الاستهداف (Highlight)
+    local isTargeted = char:FindFirstChild("Highlight") ~= nil
+    
+    if isTargeted then
+        return "InGame_Targeted"
+    else
+        return "InGame_NotTargeted"
+    end
 end
 
--- ══════════════════════════════════════════════
--- DIRECTIONS
--- ══════════════════════════════════════════════
+-- هل اللاعب في المباراة (للحركة)
+local function IsInMatch()
+    local state = GetPlayerState()
+    return state == "InGame_Targeted" or state == "InGame_NotTargeted"
+end
+
+-- هل اللاعب حي؟
+local function IsAlive()
+    local char = LP.Character
+    if not char then return false end
+    local hum = char:FindFirstChild("Humanoid")
+    return hum and hum.Health > 0
+end
+
+-- ==============================================
+-- الاتجاهات للحركة
+-- ==============================================
 local Dirs = {
-    Vector3.new(1,0,0),  Vector3.new(-1,0,0),
-    Vector3.new(0,0,1),  Vector3.new(0,0,-1),
-    Vector3.new(1,0,1).Unit, Vector3.new(-1,0,-1).Unit,
-    Vector3.new(1,0,-1).Unit, Vector3.new(-1,0,1).Unit,
+    Vector3.new(1, 0, 0),  Vector3.new(-1, 0, 0),
+    Vector3.new(0, 0, 1),  Vector3.new(0, 0, -1),
+    Vector3.new(1, 0, 1).Unit, Vector3.new(-1, 0, -1).Unit,
+    Vector3.new(1, 0, -1).Unit, Vector3.new(-1, 0, 1).Unit,
 }
 
--- ══════════════════════════════════════════════
--- MAIN LOOP
--- ══════════════════════════════════════════════
+-- ==============================================
+-- MAIN LOOP - الحركة والقفز
+-- ==============================================
 RunService.Heartbeat:Connect(function()
     pcall(function()
         local char = LP.Character
         if not char then return end
+        
         local hrp = char:FindFirstChild("HumanoidRootPart")
         local hum = char:FindFirstChild("Humanoid")
         if not hrp or not hum then return end
         
         local now = tick()
-        local inGame = IsInRealGame()
+        local inMatch = IsInMatch()
+        local alive = IsAlive()
         
-        -- القفز
-        if CFG.AutoJump and inGame and now - lastJump >= CFG.JumpInterval then
+        -- القفز (قفزتين)
+        if CFG.AutoJump and inMatch and alive and now - lastJump >= CFG.JumpInterval then
             lastJump = now
             hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
             hum.Jump = true
-            task.delay(0.2, function()
+            task.delay(0.18, function()
                 pcall(function()
                     if hum and hum.Parent and hum.Health > 0 then
                         hum:SetStateEnabled(Enum.HumanoidStateType.Jumping, true)
@@ -130,77 +205,144 @@ RunService.Heartbeat:Connect(function()
             end)
         end
         
-        -- المشي
-        if CFG.AutoWalk and inGame and now - lastWalk >= 0.6 then
+        -- المشي التلقائي (فقط في المباراة)
+        if CFG.AutoWalk and inMatch and alive and now - lastWalk >= 0.6 then
             lastWalk = now
-            hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 22)
+            local target = hrp.Position + Dirs[math.random(1, #Dirs)] * 20
+            hum:MoveTo(target)
         end
         
-        -- حركة عشوائية
-        if CFG.RandomMove and inGame and now - lastRandom >= CFG.MoveInterval then
+        -- الحركة العشوائية (فقط في المباراة)
+        if CFG.RandomMove and inMatch and alive and now - lastRandom >= CFG.MoveInterval then
             lastRandom = now
-            hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 16)
+            local target = hrp.Position + Dirs[math.random(1, #Dirs)] * 15
+            hum:MoveTo(target)
         end
     end)
 end)
 
--- ══════════════════════════════════════════════
+-- ==============================================
+-- حذف العناصر الثقيلة من الخريطة (Anti-Lag ذكي)
+-- ==============================================
+local function CleanHeavyElements()
+    pcall(function()
+        -- 1. تعطيل المؤثرات العامة
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke") or v:IsA("Fire") then
+                v.Enabled = false
+            end
+            if v:IsA("BloomEffect") or v:IsA("BlurEffect") or v:IsA("SunRaysEffect") then
+                v.Enabled = false
+            end
+            if v:IsA("BasePart") then
+                v.CastShadow = false
+            end
+        end
+        
+        -- 2. حذف زخارف الخريطة حسب النوع
+        local mapFolder = Workspace:FindFirstChild("Map")
+        if mapFolder then
+            local currentMap = mapFolder:FindFirstChildWhichIsA("Model")
+            if currentMap then
+                local mapName = currentMap.Name
+                
+                -- عناصر ثقيلة حسب الخريطة
+                local heavyNames = {}
+                if mapName == "Birdcage" or mapName == "BirdCage" then
+                    heavyNames = {"Chain", "Crystal", "Pillar", "Cage"}
+                elseif mapName == "Arena" then
+                    heavyNames = {"Column", "Door", "Cabin"}
+                elseif mapName == "HeightFight" or mapName == "Height Fight" then
+                    heavyNames = {"Torch", "FireRing"}
+                elseif mapName == "Olympus" then
+                    heavyNames = {"Pillar", "Stone"}
+                elseif mapName == "Quarry" then
+                    heavyNames = {"Tree", "Rock", "Bush"}
+                elseif mapName == "EnchantedDesert" or mapName == "Enchanted Desert" then
+                    heavyNames = {"Tree", "Vine", "Rock"}
+                elseif mapName == "RingOfFire" or mapName == "Ring of Fire" then
+                    heavyNames = {"Mountain", "Rock", "Lava"}
+                elseif mapName == "Desert" then
+                    heavyNames = {"Cactus"}
+                elseif mapName == "GrassyClassic" or mapName == "Grassy Classic" then
+                    heavyNames = {"Tree", "Grass"}
+                end
+                
+                for _, name in ipairs(heavyNames) do
+                    for _, v in ipairs(currentMap:GetDescendants()) do
+                        if v.Name == name or v.Name:find(name) then
+                            pcall(function() v:Destroy() end)
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- ==============================================
 -- GUI ROOT
--- ══════════════════════════════════════════════
+-- ==============================================
 local SG = Instance.new("ScreenGui")
 SG.Name = "BB_v83"
 SG.ResetOnSpawn = false
 SG.DisplayOrder = 999
 SG.IgnoreGuiInset = true
 
-local ok = pcall(function() SG.Parent = game:GetService("CoreGui") end)
-if not ok or not SG.Parent then SG.Parent = LP:WaitForChild("PlayerGui") end
+pcall(function() SG.Parent = CoreGui end)
+if not SG.Parent then SG.Parent = LP:WaitForChild("PlayerGui") end
 
+-- ==============================================
 -- FLOATING ICON
+-- ==============================================
 local Icon = Instance.new("TextButton")
 Icon.Text = "⚔"
 Icon.Font = Enum.Font.GothamBold
 Icon.TextSize = 20
-Icon.TextColor3 = Color3.fromRGB(255,255,255)
+Icon.TextColor3 = Color3.fromRGB(255, 255, 255)
 Icon.BackgroundColor3 = C.BG
-Icon.Size = UDim2.new(0,48,0,48)
-Icon.Position = UDim2.new(0,10,0.5,-24)
+Icon.Size = UDim2.new(0, 48, 0, 48)
+Icon.Position = UDim2.new(0, 10, 0.5, -24)
 Icon.BorderSizePixel = 0
 Icon.Visible = false
 Icon.Parent = SG
-Instance.new("UICorner", Icon).CornerRadius = UDim.new(1,0)
+Instance.new("UICorner", Icon).CornerRadius = UDim.new(1, 0)
 
 local IconStroke = Instance.new("UIStroke")
 IconStroke.Color = C.Accent
 IconStroke.Thickness = 2
 IconStroke.Parent = Icon
 
+-- ==============================================
 -- MAIN WINDOW
+-- ==============================================
 local Win = Instance.new("Frame")
-Win.Size = UDim2.new(0.92,0,0.80,0)
-Win.Position = UDim2.new(0.04,0,0.08,0)
+Win.Size = UDim2.new(0.92, 0, 0.80, 0)
+Win.Position = UDim2.new(0.04, 0, 0.08, 0)
 Win.BackgroundColor3 = C.BG
 Win.BorderSizePixel = 0
 Win.ClipsDescendants = true
 Win.Parent = SG
-Instance.new("UICorner", Win).CornerRadius = UDim.new(0,12)
+Instance.new("UICorner", Win).CornerRadius = UDim.new(0, 12)
 
 local WinStroke = Instance.new("UIStroke")
-WinStroke.Color = Color3.fromRGB(32,32,52)
+WinStroke.Color = Color3.fromRGB(32, 32, 52)
 WinStroke.Thickness = 1
 WinStroke.Parent = Win
 
 local TopLine = Instance.new("Frame")
-TopLine.Size = UDim2.new(1,0,0,3)
+TopLine.Size = UDim2.new(1, 0, 0, 3)
 TopLine.BackgroundColor3 = C.Accent
 TopLine.BorderSizePixel = 0
 TopLine.Parent = Win
-Instance.new("UICorner", TopLine).CornerRadius = UDim.new(0,3)
+Instance.new("UICorner", TopLine).CornerRadius = UDim.new(0, 3)
 
+-- ==============================================
 -- HEADER
+-- ==============================================
 local Header = Instance.new("Frame")
-Header.Size = UDim2.new(1,0,0,44)
-Header.Position = UDim2.new(0,0,0,3)
+Header.Size = UDim2.new(1, 0, 0, 44)
+Header.Position = UDim2.new(0, 0, 0, 3)
 Header.BackgroundTransparency = 1
 Header.Parent = Win
 
@@ -208,28 +350,28 @@ local TitleL = Instance.new("TextLabel")
 TitleL.Text = "⚔ Blade Ball v8.3"
 TitleL.Font = Enum.Font.GothamBold
 TitleL.TextSize = 15
-TitleL.TextColor3 = Color3.fromRGB(255,255,255)
+TitleL.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleL.BackgroundTransparency = 1
-TitleL.Size = UDim2.new(1,-50,0,22)
-TitleL.Position = UDim2.new(0,12,0,5)
+TitleL.Size = UDim2.new(1, -50, 0, 22)
+TitleL.Position = UDim2.new(0, 12, 0, 5)
 TitleL.TextXAlignment = Enum.TextXAlignment.Left
 TitleL.Parent = Header
 
 local SubL = Instance.new("TextLabel")
-SubL.Text = "Fixed Walk + Double Jump + Anti-Lag"
+SubL.Text = "Anti-Lag · Double Jump · Fixed Walk"
 SubL.Font = Enum.Font.Gotham
 SubL.TextSize = 9
 SubL.TextColor3 = C.Muted
 SubL.BackgroundTransparency = 1
-SubL.Size = UDim2.new(1,-50,0,13)
-SubL.Position = UDim2.new(0,12,0,27)
+SubL.Size = UDim2.new(1, -50, 0, 13)
+SubL.Position = UDim2.new(0, 12, 0, 27)
 SubL.TextXAlignment = Enum.TextXAlignment.Left
 SubL.Parent = Header
 
 -- أزرار التحكم
 local ButtonBar = Instance.new("Frame")
-ButtonBar.Size = UDim2.new(0,80,0,30)
-ButtonBar.Position = UDim2.new(1,-90,0,7)
+ButtonBar.Size = UDim2.new(0, 80, 0, 30)
+ButtonBar.Position = UDim2.new(1, -90, 0, 7)
 ButtonBar.BackgroundTransparency = 1
 ButtonBar.Parent = Header
 
@@ -238,135 +380,149 @@ MinBtn.Text = "−"
 MinBtn.Font = Enum.Font.GothamBold
 MinBtn.TextSize = 18
 MinBtn.TextColor3 = C.Muted
-MinBtn.BackgroundColor3 = Color3.fromRGB(22,22,36)
-MinBtn.Size = UDim2.new(0,30,0,30)
-MinBtn.Position = UDim2.new(0,0,0,0)
+MinBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 36)
+MinBtn.Size = UDim2.new(0, 30, 0, 30)
+MinBtn.Position = UDim2.new(0, 0, 0, 0)
 MinBtn.BorderSizePixel = 0
 MinBtn.Parent = ButtonBar
-Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0,8)
+Instance.new("UICorner", MinBtn).CornerRadius = UDim.new(0, 8)
 
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Text = "✖"
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.TextSize = 18
 CloseBtn.TextColor3 = C.Red
-CloseBtn.BackgroundColor3 = Color3.fromRGB(40,20,20)
-CloseBtn.Size = UDim2.new(0,30,0,30)
-CloseBtn.Position = UDim2.new(0,35,0,0)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(40, 20, 20)
+CloseBtn.Size = UDim2.new(0, 30, 0, 30)
+CloseBtn.Position = UDim2.new(0, 35, 0, 0)
 CloseBtn.BorderSizePixel = 0
 CloseBtn.Parent = ButtonBar
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,8)
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 8)
 
+-- ==============================================
 -- TAB BAR
+-- ==============================================
 local TabBar = Instance.new("Frame")
-TabBar.Size = UDim2.new(1,-16,0,30)
-TabBar.Position = UDim2.new(0,8,0,50)
-TabBar.BackgroundColor3 = Color3.fromRGB(14,14,22)
+TabBar.Size = UDim2.new(1, -16, 0, 30)
+TabBar.Position = UDim2.new(0, 8, 0, 50)
+TabBar.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
 TabBar.BorderSizePixel = 0
 TabBar.Parent = Win
-Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0,8)
+Instance.new("UICorner", TabBar).CornerRadius = UDim.new(0, 8)
 
-local TBL = Instance.new("UIListLayout")
-TBL.FillDirection = Enum.FillDirection.Horizontal
-TBL.SortOrder = Enum.SortOrder.LayoutOrder
-TBL.Padding = UDim.new(0,2)
-TBL.Parent = TabBar
+local TabLayout = Instance.new("UIListLayout")
+TabLayout.FillDirection = Enum.FillDirection.Horizontal
+TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+TabLayout.Padding = UDim.new(0, 2)
+TabLayout.Parent = TabBar
 
-local TBP = Instance.new("UIPadding")
-TBP.PaddingLeft = UDim.new(0,2)
-TBP.PaddingRight = UDim.new(0,2)
-TBP.PaddingTop = UDim.new(0,2)
-TBP.PaddingBottom = UDim.new(0,2)
-TBP.Parent = TabBar
+local TabPadding = Instance.new("UIPadding")
+TabPadding.PaddingLeft = UDim.new(0, 2)
+TabPadding.PaddingRight = UDim.new(0, 2)
+TabPadding.PaddingTop = UDim.new(0, 2)
+TabPadding.PaddingBottom = UDim.new(0, 2)
+TabPadding.Parent = TabBar
 
+-- ==============================================
 -- CONTENT
+-- ==============================================
 local Content = Instance.new("Frame")
-Content.Size = UDim2.new(1,-16,1,-86)
-Content.Position = UDim2.new(0,8,0,82)
+Content.Size = UDim2.new(1, -16, 1, -86)
+Content.Position = UDim2.new(0, 8, 0, 82)
 Content.BackgroundTransparency = 1
 Content.ClipsDescendants = true
 Content.Parent = Win
 
-local ActiveTab, TBtns, TPages = nil, {}, {}
+local ActiveTab, TabButtons, TabPages = nil, {}, {}
 
 local function MakeTab(name, icon, order)
-    local Btn = Instance.new("TextButton")
-    Btn.Text = icon
-    Btn.Font = Enum.Font.GothamBold
-    Btn.TextSize = 14
-    Btn.TextColor3 = C.Muted
-    Btn.BackgroundColor3 = Color3.fromRGB(14,14,22)
-    Btn.Size = UDim2.new(0.25,-2,1,0)
-    Btn.BorderSizePixel = 0
-    Btn.LayoutOrder = order
-    Btn.Parent = TabBar
-    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0,6)
+    local btn = Instance.new("TextButton")
+    btn.Text = icon
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 14
+    btn.TextColor3 = C.Muted
+    btn.BackgroundColor3 = Color3.fromRGB(14, 14, 22)
+    btn.Size = UDim2.new(0.25, -2, 1, 0)
+    btn.BorderSizePixel = 0
+    btn.LayoutOrder = order
+    btn.Parent = TabBar
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
-    local Page = Instance.new("ScrollingFrame")
-    Page.Size = UDim2.new(1,0,1,0)
-    Page.BackgroundTransparency = 1
-    Page.BorderSizePixel = 0
-    Page.ScrollBarThickness = 2
-    Page.ScrollBarImageColor3 = C.Accent
-    Page.AutomaticCanvasSize = Enum.AutomaticSize.Y
-    Page.CanvasSize = UDim2.new(0,0,0,0)
-    Page.Visible = false
-    Page.Parent = Content
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.BorderSizePixel = 0
+    page.ScrollBarThickness = 2
+    page.ScrollBarImageColor3 = C.Accent
+    page.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    page.CanvasSize = UDim2.new(0, 0, 0, 0)
+    page.Visible = false
+    page.Parent = Content
 
-    local PL = Instance.new("UIListLayout")
-    PL.SortOrder = Enum.SortOrder.LayoutOrder
-    PL.Padding = UDim.new(0,5)
-    PL.Parent = Page
-    
-    local PP = Instance.new("UIPadding")
-    PP.PaddingTop = UDim.new(0,4)
-    PP.PaddingBottom = UDim.new(0,8)
-    PP.Parent = Page
+    local pageLayout = Instance.new("UIListLayout")
+    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pageLayout.Padding = UDim.new(0, 5)
+    pageLayout.Parent = page
 
-    TBtns[name] = Btn
-    TPages[name] = Page
+    local pagePadding = Instance.new("UIPadding")
+    pagePadding.PaddingTop = UDim.new(0, 4)
+    pagePadding.PaddingBottom = UDim.new(0, 8)
+    pagePadding.Parent = page
 
-    Btn.MouseButton1Click:Connect(function()
+    TabButtons[name] = btn
+    TabPages[name] = page
+
+    btn.MouseButton1Click:Connect(function()
         if ActiveTab == name then return end
         if ActiveTab then
-            TPages[ActiveTab].Visible = false
-            TweenService:Create(TBtns[ActiveTab], TweenInfo.new(0.12), {
-                BackgroundColor3 = Color3.fromRGB(14,14,22),
+            TabPages[ActiveTab].Visible = false
+            TweenService:Create(TabButtons[ActiveTab], TweenInfo.new(0.12), {
+                BackgroundColor3 = Color3.fromRGB(14, 14, 22),
                 TextColor3 = C.Muted
             }):Play()
         end
         ActiveTab = name
-        Page.Visible = true
-        TweenService:Create(Btn, TweenInfo.new(0.12), {
+        page.Visible = true
+        TweenService:Create(btn, TweenInfo.new(0.12), {
             BackgroundColor3 = C.Accent,
-            TextColor3 = Color3.fromRGB(255,255,255)
+            TextColor3 = Color3.fromRGB(255, 255, 255)
         }):Play()
+        
+        task.wait(0.05)
+        page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 16)
     end)
-    return Page
+    
+    pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        if page.Visible then
+            page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 16)
+        end
+    end)
+
+    return page
 end
 
--- إنشاء التبويبات (3 تبويبات)
+-- إنشاء التبويبات
 local P1 = MakeTab("الرئيسية", "🏠", 1)
 local P2 = MakeTab("حركة", "🎮", 2)
 local P3 = MakeTab("أداء", "⚡", 3)
 
 -- تفعيل التبويب الأول
-TBtns["الرئيسية"].BackgroundColor3 = C.Accent
-TBtns["الرئيسية"].TextColor3 = Color3.fromRGB(255,255,255)
-TPages["الرئيسية"].Visible = true
+TabButtons["الرئيسية"].BackgroundColor3 = C.Accent
+TabButtons["الرئيسية"].TextColor3 = Color3.fromRGB(255, 255, 255)
+TabPages["الرئيسية"].Visible = true
 ActiveTab = "الرئيسية"
 
--- ══════════════════════════════════════════════
+-- ==============================================
 -- HELPERS
--- ══════════════════════════════════════════════
+-- ==============================================
 local function Row(p, h, o)
     local f = Instance.new("Frame")
-    f.Size = UDim2.new(1,0,0,h)
+    f.Size = UDim2.new(1, 0, 0, h)
     f.BackgroundColor3 = C.Card
     f.BorderSizePixel = 0
     f.LayoutOrder = o or 0
     f.Parent = p
-    Instance.new("UICorner", f).CornerRadius = UDim.new(0,9)
+    Instance.new("UICorner", f).CornerRadius = UDim.new(0, 9)
     return f
 end
 
@@ -377,10 +533,11 @@ local function SLbl(p, t, o)
     l.TextSize = 9
     l.TextColor3 = C.Muted
     l.BackgroundTransparency = 1
-    l.Size = UDim2.new(1,0,0,14)
+    l.Size = UDim2.new(1, 0, 0, 14)
     l.TextXAlignment = Enum.TextXAlignment.Left
     l.LayoutOrder = o or 0
     l.Parent = p
+    return l
 end
 
 local THRESH = 12
@@ -394,8 +551,8 @@ local function Toggle(p, title, desc, o, cb)
     tl.TextSize = 12
     tl.TextColor3 = C.Text
     tl.BackgroundTransparency = 1
-    tl.Size = UDim2.new(1,-60,0,18)
-    tl.Position = UDim2.new(0,10,0,8)
+    tl.Size = UDim2.new(1, -60, 0, 18)
+    tl.Position = UDim2.new(0, 10, 0, 8)
     tl.TextXAlignment = Enum.TextXAlignment.Left
     tl.Parent = row
 
@@ -405,32 +562,32 @@ local function Toggle(p, title, desc, o, cb)
     dl.TextSize = 9
     dl.TextColor3 = C.Muted
     dl.BackgroundTransparency = 1
-    dl.Size = UDim2.new(1,-60,0,14)
-    dl.Position = UDim2.new(0,10,0,30)
+    dl.Size = UDim2.new(1, -60, 0, 14)
+    dl.Position = UDim2.new(0, 10, 0, 30)
     dl.TextXAlignment = Enum.TextXAlignment.Left
     dl.Parent = row
 
     local track = Instance.new("Frame")
-    track.Size = UDim2.new(0,42,0,24)
-    track.Position = UDim2.new(1,-50,0.5,-12)
-    track.BackgroundColor3 = Color3.fromRGB(28,28,45)
+    track.Size = UDim2.new(0, 42, 0, 24)
+    track.Position = UDim2.new(1, -50, 0.5, -12)
+    track.BackgroundColor3 = Color3.fromRGB(28, 28, 45)
     track.BorderSizePixel = 0
     track.Parent = row
-    Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
 
     local thumb = Instance.new("Frame")
-    thumb.Size = UDim2.new(0,18,0,18)
-    thumb.Position = UDim2.new(0,3,0.5,-9)
-    thumb.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    thumb.Size = UDim2.new(0, 18, 0, 18)
+    thumb.Position = UDim2.new(0, 3, 0.5, -9)
+    thumb.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     thumb.BorderSizePixel = 0
     thumb.Parent = track
-    Instance.new("UICorner", thumb).CornerRadius = UDim.new(1,0)
+    Instance.new("UICorner", thumb).CornerRadius = UDim.new(1, 0)
 
     local ti = TweenInfo.new(0.14)
     local function set(v)
         state = v
-        TweenService:Create(track, ti, {BackgroundColor3 = v and C.Accent or Color3.fromRGB(28,28,45)}):Play()
-        TweenService:Create(thumb, ti, {Position = v and UDim2.new(0,21,0.5,-9) or UDim2.new(0,3,0.5,-9)}):Play()
+        TweenService:Create(track, ti, {BackgroundColor3 = v and C.Accent or Color3.fromRGB(28, 28, 45)}):Play()
+        TweenService:Create(thumb, ti, {Position = v and UDim2.new(0, 21, 0.5, -9) or UDim2.new(0, 3, 0.5, -9)}):Play()
         if cb then cb(v) end
     end
 
@@ -458,45 +615,45 @@ local function Slider(p, title, minV, maxV, defV, suf, o, cb)
     tl.TextSize = 11
     tl.TextColor3 = C.Text
     tl.BackgroundTransparency = 1
-    tl.Size = UDim2.new(0.62,0,0,18)
-    tl.Position = UDim2.new(0,10,0,6)
+    tl.Size = UDim2.new(0.62, 0, 0, 18)
+    tl.Position = UDim2.new(0, 10, 0, 6)
     tl.TextXAlignment = Enum.TextXAlignment.Left
     tl.Parent = row
     
     local vl = Instance.new("TextLabel")
-    vl.Text = tostring(defV)..(suf or "")
+    vl.Text = tostring(defV) .. (suf or "")
     vl.Font = Enum.Font.GothamBold
     vl.TextSize = 11
     vl.TextColor3 = C.Accent
     vl.BackgroundTransparency = 1
-    vl.Size = UDim2.new(0.35,0,0,18)
-    vl.Position = UDim2.new(0.63,0,0,6)
+    vl.Size = UDim2.new(0.35, 0, 0, 18)
+    vl.Position = UDim2.new(0.63, 0, 0, 6)
     vl.TextXAlignment = Enum.TextXAlignment.Right
     vl.Parent = row
     
     local track = Instance.new("Frame")
-    track.Size = UDim2.new(1,-20,0,5)
-    track.Position = UDim2.new(0,10,0,38)
-    track.BackgroundColor3 = Color3.fromRGB(25,25,40)
+    track.Size = UDim2.new(1, -20, 0, 5)
+    track.Position = UDim2.new(0, 10, 0, 38)
+    track.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
     track.BorderSizePixel = 0
     track.Parent = row
-    Instance.new("UICorner", track).CornerRadius = UDim.new(1,0)
+    Instance.new("UICorner", track).CornerRadius = UDim.new(1, 0)
     
     local r0 = (defV - minV) / math.max(maxV - minV, 1)
     local fill = Instance.new("Frame")
-    fill.Size = UDim2.new(r0,0,1,0)
+    fill.Size = UDim2.new(r0, 0, 1, 0)
     fill.BackgroundColor3 = C.Accent
     fill.BorderSizePixel = 0
     fill.Parent = track
-    Instance.new("UICorner", fill).CornerRadius = UDim.new(1,0)
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(1, 0)
     
     local knob = Instance.new("Frame")
-    knob.Size = UDim2.new(0,14,0,14)
-    knob.Position = UDim2.new(r0,-7,0.5,-7)
-    knob.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    knob.Size = UDim2.new(0, 14, 0, 14)
+    knob.Position = UDim2.new(r0, -7, 0.5, -7)
+    knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     knob.BorderSizePixel = 0
     knob.Parent = track
-    Instance.new("UICorner", knob).CornerRadius = UDim.new(1,0)
+    Instance.new("UICorner", knob).CornerRadius = UDim.new(1, 0)
     
     local drag = false
     knob.InputBegan:Connect(function(i)
@@ -510,9 +667,9 @@ local function Slider(p, title, minV, maxV, defV, suf, o, cb)
             local r = (i.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X
             r = math.clamp(r, 0, 1)
             local v = math.floor(minV + r * (maxV - minV) + 0.5)
-            vl.Text = tostring(v)..(suf or "")
-            fill.Size = UDim2.new(r,0,1,0)
-            knob.Position = UDim2.new(r,-7,0.5,-7)
+            vl.Text = tostring(v) .. (suf or "")
+            fill.Size = UDim2.new(r, 0, 1, 0)
+            knob.Position = UDim2.new(r, -7, 0.5, -7)
             if cb then cb(v) end
         end
     end)
@@ -528,24 +685,24 @@ local function Slider(p, title, minV, maxV, defV, suf, o, cb)
         end
         local r = math.clamp((i.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
         local v = math.floor(minV + r * (maxV - minV) + 0.5)
-        vl.Text = tostring(v)..(suf or "")
-        fill.Size = UDim2.new(r,0,1,0)
-        knob.Position = UDim2.new(r,-7,0.5,-7)
+        vl.Text = tostring(v) .. (suf or "")
+        fill.Size = UDim2.new(r, 0, 1, 0)
+        knob.Position = UDim2.new(r, -7, 0.5, -7)
         if cb then cb(v) end
     end)
 end
 
--- ══════════════════════════════════════════════
+-- ==============================================
 -- TAB 1 — الرئيسية
--- ══════════════════════════════════════════════
+-- ==============================================
 local sRow = Row(P1, 30, 1)
 local sDot = Instance.new("Frame")
-sDot.Size = UDim2.new(0,8,0,8)
-sDot.Position = UDim2.new(0,10,0.5,-4)
+sDot.Size = UDim2.new(0, 8, 0, 8)
+sDot.Position = UDim2.new(0, 10, 0.5, -4)
 sDot.BackgroundColor3 = C.Muted
 sDot.BorderSizePixel = 0
 sDot.Parent = sRow
-Instance.new("UICorner", sDot).CornerRadius = UDim.new(1,0)
+Instance.new("UICorner", sDot).CornerRadius = UDim.new(1, 0)
 
 local sLbl = Instance.new("TextLabel")
 sLbl.Text = "الوضع: خامل"
@@ -553,13 +710,13 @@ sLbl.Font = Enum.Font.Gotham
 sLbl.TextSize = 10
 sLbl.TextColor3 = C.Muted
 sLbl.BackgroundTransparency = 1
-sLbl.Size = UDim2.new(1,-24,1,0)
-sLbl.Position = UDim2.new(0,22,0,0)
+sLbl.Size = UDim2.new(1, -24, 1, 0)
+sLbl.Position = UDim2.new(0, 22, 0, 0)
 sLbl.TextXAlignment = Enum.TextXAlignment.Left
 sLbl.Parent = sRow
 
 local function SetStatus(msg, col)
-    sLbl.Text = "الوضع: "..msg
+    sLbl.Text = "الوضع: " .. msg
     sDot.BackgroundColor3 = col or C.Muted
 end
 
@@ -570,21 +727,54 @@ fLbl.Font = Enum.Font.GothamBold
 fLbl.TextSize = 12
 fLbl.TextColor3 = C.Accent
 fLbl.BackgroundTransparency = 1
-fLbl.Size = UDim2.new(1,0,1,0)
+fLbl.Size = UDim2.new(1, 0, 1, 0)
 fLbl.TextXAlignment = Enum.TextXAlignment.Center
 fLbl.Parent = fRow
 
-SLbl(P1, "  ── معلومات ──", 3)
-SLbl(P1, "  ✅ المشي بعد الموت: تم الإصلاح", 4)
-SLbl(P1, "  ✅ القفز: قفزتين متتاليتين", 5)
-SLbl(P1, "  ✅ Anti-Lag: يحذف المؤثرات فقط", 6)
+-- مؤشر حالة اللاعب
+local gRow = Row(P1, 28, 3)
+local gLbl = Instance.new("TextLabel")
+gLbl.Font = Enum.Font.Gotham
+gLbl.TextSize = 9
+gLbl.BackgroundTransparency = 1
+gLbl.Size = UDim2.new(1, -8, 1, 0)
+gLbl.Position = UDim2.new(0, 4, 0, 0)
+gLbl.TextXAlignment = Enum.TextXAlignment.Left
+gLbl.Parent = gRow
+gLbl.Text = "🏠 الحالة: لوبي"
+gLbl.TextColor3 = C.Muted
 
--- ══════════════════════════════════════════════
+-- تحديث مؤشر الحالة
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        local state = GetPlayerState()
+        if state == "InGame_Targeted" then
+            gLbl.Text = "⚔ الحالة: في المباراة (مستهدف)"
+            gLbl.TextColor3 = C.Red
+        elseif state == "InGame_NotTargeted" then
+            gLbl.Text = "⚔ الحالة: في المباراة (غير مستهدف)"
+            gLbl.TextColor3 = C.Green
+        elseif state == "Spectating" then
+            gLbl.Text = "👁️ الحالة: مشاهدة/ميت"
+            gLbl.TextColor3 = C.Yellow
+        else
+            gLbl.Text = "🏠 الحالة: لوبي"
+            gLbl.TextColor3 = C.Muted
+        end
+    end)
+end)
+
+SLbl(P1, "  ── معلومات ──", 4)
+SLbl(P1, "  ✅ المشي بعد الموت: تم الإصلاح", 5)
+SLbl(P1, "  ✅ القفز: قفزتين متتاليتين", 6)
+SLbl(P1, "  ✅ Anti-Lag: يحذف المؤثرات + عناصر الخريطة", 7)
+
+-- ==============================================
 -- TAB 2 — حركة
--- ══════════════════════════════════════════════
+-- ==============================================
 SLbl(P2, "  ── القفز والمشي ──", 1)
 
-Toggle(P2, "🦘  قفز تلقائي", "قفزتين متتاليتين (تأخير 0.2s)", 2, function(on)
+Toggle(P2, "🦘  قفز تلقائي", "قفزتين متتاليتين (تأخير 0.18s)", 2, function(on)
     CFG.AutoJump = on
     SetStatus(on and "قفز تلقائي 🦘" or "خامل", on and C.Yellow or nil)
 end)
@@ -608,9 +798,9 @@ Slider(P2, "🔄  سرعة التغيير", 1, 10, 4, "x", 7, function(v)
     CFG.MoveInterval = 1 / v
 end)
 
--- ══════════════════════════════════════════════
--- TAB 3 — أداء (Anti-Lag المُصلح)
--- ══════════════════════════════════════════════
+-- ==============================================
+-- TAB 3 — أداء (Anti-Lag المُحسّن)
+-- ==============================================
 SLbl(P3, "  ── تحسين الأداء ──", 1)
 
 local pfRow = Row(P3, 30, 2)
@@ -620,48 +810,42 @@ pfLbl.Font = Enum.Font.GothamBold
 pfLbl.TextSize = 12
 pfLbl.TextColor3 = C.Accent
 pfLbl.BackgroundTransparency = 1
-pfLbl.Size = UDim2.new(1,0,1,0)
+pfLbl.Size = UDim2.new(1, 0, 1, 0)
 pfLbl.TextXAlignment = Enum.TextXAlignment.Center
 pfLbl.Parent = pfRow
 
--- ✅ Anti-Lag الصحيح (بدون تجميد)
-Toggle(P3, "⚡  Ultra Anti-Lag", "يحذف المؤثرات + رمادي (يحسن FPS)", 3, function(on)
+Toggle(P3, "⚡  Ultra Anti-Lag", "يحذف المؤثرات + عناصر الخريطة + رمادي", 3, function(on)
     CFG.AntiLag = on
     
     if on then
         if antiLagConnection then antiLagConnection:Disconnect() end
         
-        -- رمادي
+        -- 1. تحويل الشاشة للرمادي
         if ColorCorrection then ColorCorrection:Destroy() end
         ColorCorrection = Instance.new("ColorCorrectionEffect")
         ColorCorrection.Saturation = -1
         ColorCorrection.Parent = Lighting
         
-        -- إعدادات الإضاءة
+        -- 2. إعدادات الإضاءة
         Lighting.GlobalShadows = false
         Lighting.FogEnd = 9e9
         Lighting.FogStart = 9e9
         Lighting.Brightness = 2
+        Lighting.ClockTime = 14
         
-        -- تعطيل المؤثرات (مرة واحدة)
-        for _, v in ipairs(workspace:GetDescendants()) do
-            pcall(function()
-                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Fire") then
-                    v.Enabled = false
-                end
-                if v:IsA("BasePart") then
-                    v.CastShadow = false
-                end
-            end)
-        end
+        -- 3. تنظيف العناصر الثقيلة (مرة واحدة)
+        CleanHeavyElements()
         
-        -- حلقة خفيفة كل 5 ثواني
+        -- 4. حلقة خفيفة للحفاظ على النظافة (كل 5 ثواني)
         antiLagConnection = RunService.Stepped:Connect(function()
             if not CFG.AntiLag then return end
             pcall(function()
-                for _, v in ipairs(workspace:GetDescendants()) do
+                for _, v in ipairs(Workspace:GetDescendants()) do
                     if v:IsA("ParticleEmitter") or v:IsA("Trail") then
                         v.Enabled = false
+                    end
+                    if v:IsA("BasePart") then
+                        v.CastShadow = false
                     end
                 end
             end)
@@ -672,6 +856,7 @@ Toggle(P3, "⚡  Ultra Anti-Lag", "يحذف المؤثرات + رمادي (يح�
     else
         if antiLagConnection then antiLagConnection:Disconnect() end
         antiLagConnection = nil
+        
         if ColorCorrection then ColorCorrection:Destroy() end
         ColorCorrection = nil
         
@@ -684,9 +869,9 @@ Toggle(P3, "⚡  Ultra Anti-Lag", "يحذف المؤثرات + رمادي (يح�
     end
 end)
 
--- ══════════════════════════════════════════════
--- FPS LOOP
--- ══════════════════════════════════════════════
+-- ==============================================
+-- FPS COUNTER
+-- ==============================================
 local fT, fS = 0, {}
 RunService.Heartbeat:Connect(function(dt)
     table.insert(fS, 1 / math.max(dt, 0.001))
@@ -698,7 +883,7 @@ RunService.Heartbeat:Connect(function(dt)
         for _, v in ipairs(fS) do s = s + v end
         local avg = math.floor(s / #fS)
         local col = avg >= 50 and C.Green or avg >= 25 and C.Yellow or C.Red
-        local txt = "⚡ FPS: "..avg
+        local txt = "⚡ FPS: " .. avg
         fLbl.Text = txt
         fLbl.TextColor3 = col
         pfLbl.Text = txt
@@ -706,11 +891,11 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
--- ══════════════════════════════════════════════
+-- ==============================================
 -- زر التصغير
--- ══════════════════════════════════════════════
+-- ==============================================
 MinBtn.MouseButton1Click:Connect(function()
-    TweenService:Create(Win, TweenInfo.new(0.18), {Size = UDim2.new(0.92,0,0,0)}):Play()
+    TweenService:Create(Win, TweenInfo.new(0.18), {Size = UDim2.new(0.92, 0, 0, 0)}):Play()
     task.wait(0.2)
     Win.Visible = false
     Icon.Visible = true
@@ -719,13 +904,13 @@ end)
 Icon.MouseButton1Click:Connect(function()
     Icon.Visible = false
     Win.Visible = true
-    Win.Size = UDim2.new(0.92,0,0,0)
-    TweenService:Create(Win, TweenInfo.new(0.2), {Size = UDim2.new(0.92,0,0.80,0)}):Play()
+    Win.Size = UDim2.new(0.92, 0, 0, 0)
+    TweenService:Create(Win, TweenInfo.new(0.2), {Size = UDim2.new(0.92, 0, 0.80, 0)}):Play()
 end)
 
--- ══════════════════════════════════════════════
+-- ==============================================
 -- زر الإغلاق الكامل
--- ══════════════════════════════════════════════
+-- ==============================================
 CloseBtn.MouseButton1Click:Connect(function()
     CFG.AutoJump = false
     CFG.AutoWalk = false
@@ -755,7 +940,9 @@ CloseBtn.MouseButton1Click:Connect(function()
     print("[BB v8.3] تم إغلاق السكربت بالكامل")
 end)
 
+-- ==============================================
 -- DRAG
+-- ==============================================
 do
     local drag, sp, sw
     Header.InputBegan:Connect(function(i)
@@ -808,8 +995,12 @@ do
     end)
 end
 
+-- ==============================================
+-- بدء التشغيل
+-- ==============================================
 print("[BB v8.3] ✅ تم التحميل بنجاح!")
 print("[BB v8.3] ✅ 3 تبويبات: الرئيسية | حركة | أداء")
-print("[BB v8.3] ✅ المشي بعد الموت: تم الإصلاح")
-print("[BB v8.3] ✅ القفز: قفزتين متتاليتين")
-print("[BB v8.3] ✅ Anti-Lag: مُصلح (بدون تجميد)")
+print("[BB v8.3] ✅ المشي بعد الموت: تم الإصلاح (Y position + Health)")
+print("[BB v8.3] ✅ القفز: قفزتين متتاليتين (تأخير 0.18s)")
+print("[BB v8.3] ✅ Anti-Lag: يحذف المؤثرات + عناصر الخريطة")
+print("[BB v8.3] ✅ زر الإغلاق: يوقف كل الخيارات ويغلق المنيو")
