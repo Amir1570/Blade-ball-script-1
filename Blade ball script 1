@@ -1,163 +1,68 @@
--- Blade Ball Script from Scratch
+-- [[ FLATTING ICON & UI TOGGLE SYSTEM ]] --
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 
--- Save Data to File
-local saveData = {}
-local saveFile = "saveData.txt"
+-- التأكد من وجود الواجهة الرئيسية (الافتراض أنها مسماة MainFrame في السكربت السابق)
+-- local MainFrame = ... (يتم دمج هذا الكود مع السكربت الكامل)
 
-function saveDataToFile()
-    local file = io.open(saveFile, "w")
-    if file then
-        file:write(json.encode(saveData))
-        file:close()
-    end
+-- [1] إنشاء ScreenGui مستقل للزر العائم
+local IconGui = Instance.new("ScreenGui", CoreGui)
+IconGui.Name = "FloatingIconEngine"
+
+-- [2] إنشاء الزر العائم (Mobile Optimized)
+local FloatingBtn = Instance.new("TextButton", IconGui)
+FloatingBtn.Size = UDim2.new(0, 50, 0, 50) -- حجم مناسب للمس
+FloatingBtn.Position = UDim2.new(0.1, 0, 0.5, -25) -- الموقع الافتراضي
+FloatingBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+FloatingBtn.Text = "B" -- اختصار Blade Ball
+FloatingBtn.TextColor3 = Color3.new(1, 1, 1)
+FloatingBtn.TextSize = 20
+FloatingBtn.Active = true
+
+-- إضافة حواف دائرية للجمالية
+local UICorner = Instance.new("UICorner", FloatingBtn)
+UICorner.CornerRadius = UDim.new(0.5, 0) -- دائرة كاملة
+
+-- [3] منطق السحب (Dragging Logic for Mobile)
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    FloatingBtn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
 end
 
-function loadDataFromFile()
-    local file = io.open(saveFile, "r")
-    if file then
-        saveData = json.decode(file:read("*a"))
-        file:close()
-    end
-end
+FloatingBtn.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = FloatingBtn.Position
 
--- Load Save Data
-loadDataFromFile()
-
--- Random Walking
-local player = {
-    x = 0,
-    y = 0,
-    speed = 5,
-    jumpSpeed = 10,
-    gravity = 0.5,
-    isJumping = false,
-    isalog = false,
-    isDead = false,
-    isRunning = false,
-}
-
-function player:jump()
-    if not self.isJumping and not self.isDead then
-        self.isJumping = true
-        self.vy = -self.jumpSpeed
-    end
-end
-
-function player:update(dt)
-    if not self.isDead then
-        if self.isJumping then
-            self.vy = self.vy + self.gravity * dt
-            self.y = self.y + self.vy * dt
-            if self.y >= 100 then
-                self.isJumping = false
-                self.y = 100
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
             end
-        end
-        if self.isRunning then
-            self.x = self.x + self.speed * dt
-        end
+        end)
     end
-end
+end)
 
--- Otto Two Jumps
-local otto = {
-    x = 0,
-    y = 0,
-    speed = 5,
-    jumpSpeed = 10,
-    gravity = 0.5,
-    isJumping = false,
-    isalog = false,
-    isDead = false,
-    isRunning = false,
-    jumpCount = 0,
-}
-
-function otto:jump()
-    if not self.isJumping and not self.isDead then
-        self.isJumping = true
-        self.vy = -self.jumpSpeed
-        self.jumpCount = self.jumpCount + 1
-        if self.jumpCount == 2 then
-            self.isalog = true
-        end
+FloatingBtn.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
     end
-end
+end)
 
-function otto:update(dt)
-    if not self.isDead then
-        if self.isJumping then
-            self.vy = self.vy + self.gravity * dt
-            self.y = self.y + self.vy * dt
-            if self.y >= 100 then
-                self.isJumping = false
-                self.y = 100
-            end
-        end
-        if self.isRunning then
-            self.x = self.x + self.speed * dt
-        end
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
     end
-end
+end)
 
--- Super Anti Lag Magic
-function update(dt)
-    player:update(dt)
-    otto:update(dt)
-    if player.isJumping then
-        player.isalog = true
+-- [4] منطق التبديل (Toggle GUI Visibility)
+FloatingBtn.MouseButton1Click:Connect(function()
+    if MainFrame then
+        MainFrame.Visible = not MainFrame.Visible
     end
-    if otto.isJumping then
-        otto.isalog = true
-    end
-end
-
--- Close Script Button and Minimize User Interface
-function closeScript()
-    saveDataToFile()
-    os.execute("taskkill /im lua.exe")
-end
-
-function minimizeUI()
-    os.execute("taskkill /im lua.exe")
-    os.execute("start lua.exe")
-end
-
--- Phone UI
-function phoneUI()
-    print("Phone UI")
-    print("1. Close Script")
-    print("2. Minimize UI")
-    print("3. Save Data")
-    local choice = io.read()
-    if choice == "1" then
-        closeScript()
-    elseif choice == "2" then
-        minimizeUI()
-    elseif choice == "3" then
-        saveDataToFile()
-    end
-end
-
--- Main Loop
-function love.update(dt)
-    update(dt)
-end
-
-function love.draw()
-    -- Draw player and otto
-    love.graphics.print("Player: " .. player.x .. ", " .. player.y, 10, 10)
-    love.graphics.print("Otto: " .. otto.x .. ", " .. otto.y, 10, 20)
-    -- Draw UI
-    phoneUI()
-end
-
-function love.keypressed(key)
-    if key == "space" then
-        player:jump()
-    elseif key == "r" then
-        otto:jump()
-    elseif key == "escape" then
-        closeScript()
-    end
-end
+end)
