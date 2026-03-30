@@ -1,13 +1,13 @@
--- [[ OMEGA-Z V9.0: THE RESET ]] --
+-- [[ OMEGA-Z V10.0: KERNEL OVERRIDE ]] --
 local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local LP = Players.LocalPlayer
 
--- [1] مسح شامل وحقيقي لكل شيء قديم (بما في ذلك الأزرار العائمة)
+-- [1] تنظيف البيئة
 pcall(function()
     for _, v in pairs(LP.PlayerGui:GetChildren()) do
-        if v:IsA("ScreenGui") and (v.Name:find("BB") or v.Name:find("Blade") or v.Name:find("Omega")) then
+        if v:IsA("ScreenGui") and v.Name == "BB_KERNEL" then
             v:Destroy()
         end
     end
@@ -15,99 +15,122 @@ end)
 
 local CFG = { Walk = false, Jump = false }
 local JumpCount = 0
+local MoveDir = Vector3.new(0, 0, 0)
 
--- [2] إنشاء الواجهة والزر العائم
-local SG = Instance.new("ScreenGui", LP.PlayerGui)
-SG.Name = "BB_FINAL_V9"
+-- [2] بناء واجهة التخطي
+local SG = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui"))
+SG.Name = "BB_KERNEL"
 SG.ResetOnSpawn = false
-
--- الزر العائم (الذي اختفى سابقاً)
-local FloatingBtn = Instance.new("TextButton", SG)
-FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
-FloatingBtn.Position = UDim2.new(0, 20, 0.5, 0)
-FloatingBtn.Text = "B"
-FloatingBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 150)
-FloatingBtn.TextColor3 = Color3.new(0,0,0)
-FloatingBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", FloatingBtn).CornerRadius = UDim.new(1, 0)
+SG.IgnoreGuiInset = true
 
 local Main = Instance.new("Frame", SG)
-Main.Size = UDim2.new(0, 210, 0, 260)
-Main.Position = UDim2.new(0.5, -105, 0.5, -130)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-Main.Visible = false -- يبدأ مخفياً ويظهر بالضغط على B
+Main.Size = UDim2.new(0, 220, 0, 260)
+Main.Position = UDim2.new(0.5, -110, 0.5, -130)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+Main.BorderSizePixel = 1
+Main.BorderColor3 = Color3.fromRGB(255, 0, 0)
+Main.Visible = false
 Main.Active = true
 Main.Draggable = true
-Instance.new("UICorner", Main)
+
+local FloatingBtn = Instance.new("TextButton", SG)
+FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
+FloatingBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
+FloatingBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+FloatingBtn.Text = "B"
+FloatingBtn.TextColor3 = Color3.new(1, 1, 1)
+FloatingBtn.Font = Enum.Font.GothamBold
+FloatingBtn.TextSize = 20
+Instance.new("UICorner", FloatingBtn).CornerRadius = UDim.new(1, 0)
 
 FloatingBtn.MouseButton1Click:Connect(function()
     Main.Visible = not Main.Visible
 end)
 
--- [3] الأزرار التشغيلية
-local function CreateBtn(txt, y, callback)
+local function CreateToggle(txt, y, callback)
     local btn = Instance.new("TextButton", Main)
     btn.Size = UDim2.new(0.9, 0, 0, 45)
     btn.Position = UDim2.new(0.05, 0, 0, y)
-    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
     btn.Text = txt .. ": OFF"
-    btn.TextColor3 = Color3.new(1,1,1)
+    btn.TextColor3 = Color3.new(1, 1, 1)
     btn.Font = Enum.Font.GothamBold
-    Instance.new("UICorner", btn)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
     local state = false
     btn.MouseButton1Click:Connect(function()
         state = not state
         btn.Text = txt .. ": " .. (state and "ON" or "OFF")
-        btn.BackgroundColor3 = state and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(35, 35, 45)
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(30, 30, 30)
         callback(state)
     end)
 end
 
-CreateBtn("Auto Walk", 20, function(on) CFG.Walk = on end)
-CreateBtn("Double Jump", 75, function(on) CFG.Jump = on end)
+-- [3] الأزرار
+CreateToggle("Force Auto Walk", 20, function(on) CFG.Walk = on end)
+CreateToggle("Force Double Jump", 80, function(on) CFG.Jump = on end)
 
--- زر الإغلاق (تمت إعادته)
-local Close = Instance.new("TextButton", Main)
-Close.Size = UDim2.new(0.9, 0, 0, 40)
-Close.Position = UDim2.new(0.05, 0, 0, 180)
-Close.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-Close.Text = "CLOSE SCRIPT"
-Close.Font = Enum.Font.GothamBold
-Close.MouseButton1Click:Connect(function() SG:Destroy() end)
+local CloseBtn = Instance.new("TextButton", Main)
+CloseBtn.Size = UDim2.new(0.9, 0, 0, 40)
+CloseBtn.Position = UDim2.new(0.05, 0, 0, 200)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+CloseBtn.Text = "DESTROY KERNEL"
+CloseBtn.TextColor3 = Color3.new(1, 1, 1)
+CloseBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
+CloseBtn.MouseButton1Click:Connect(function() SG:Destroy() end)
 
--- [4] محرك الحركة والقفز الخام (Raw Force)
+-- [4] محرك الاستدلال القسري (Forced Execution Engine)
+
+-- توليد متجهات عشوائية مستمرة لتغذية المحرك
+task.spawn(function()
+    while task.wait(0.6) do
+        if CFG.Walk then
+            MoveDir = Vector3.new(math.random(-10, 10), 0, math.random(-10, 10)).Unit
+        else
+            MoveDir = Vector3.new(0, 0, 0)
+        end
+    end
+end)
+
+-- حقن الحركة المستمرة (يتجاوز حماية MoveTo)
+RunService.RenderStepped:Connect(function()
+    local char = LP.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    if hum and CFG.Walk then
+        hum:Move(MoveDir, true)
+    end
+end)
+
+-- مراقبة حالة الهبوط لإعادة ضبط القفز
 RunService.Heartbeat:Connect(function()
     local char = LP.Character
     local hum = char and char:FindFirstChild("Humanoid")
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    
-    if not hum or not hrp then return end
-
-    -- المشي القسري (يعمل الآن بمجرد التفعيل)
-    if CFG.Walk then
-        if hum.MoveDirection.Magnitude == 0 then
-            hum:MoveTo(hrp.Position + Vector3.new(math.random(-15, 15), 0, math.random(-15, 15)))
-        end
+    if hum and (hum:GetState() == Enum.HumanoidStateType.Landed or hum.FloorMaterial ~= Enum.Material.Air) then
+        JumpCount = 0
     end
-
-    if hum.FloorMaterial ~= Enum.Material.Air then JumpCount = 0 end
 end)
 
--- نظام القفز المزدوج
-UserInputService.InputBegan:Connect(function(input, processed)
-    if CFG.Jump and not processed then
-        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
-            local char = LP.Character
-            if char and JumpCount < 2 then
-                JumpCount = JumpCount + 1
-                if JumpCount == 2 then
-                    -- استخدام الـ Velocity المباشر لضمان القفزة
-                    char.PrimaryPart.Velocity = Vector3.new(char.PrimaryPart.Velocity.X, 65, char.PrimaryPart.Velocity.Z)
-                else
-                    char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
-                end
-            end
+-- حقن القفز المزدوج باستخدام طلبات نظام اللعبة الأساسي
+UserInputService.JumpRequest:Connect(function()
+    if CFG.Jump then
+        local char = LP.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        
+        if hum and hrp and JumpCount < 1 then
+            JumpCount = JumpCount + 1
+            
+            -- توليد كائن دفع فيزيائي يتجاهل الجاذبية وتعديلات السكربتات الأخرى
+            local BV = Instance.new("BodyVelocity")
+            BV.Velocity = Vector3.new(hrp.Velocity.X, 55, hrp.Velocity.Z)
+            BV.MaxForce = Vector3.new(0, 100000, 0)
+            BV.Parent = hrp
+            
+            hum:ChangeState(Enum.HumanoidStateType.Jumping)
+            
+            -- إزالة الدفع الفيزيائي بعد إتمام القفزة
+            game:GetService("Debris"):AddItem(BV, 0.15)
         end
     end
 end)
