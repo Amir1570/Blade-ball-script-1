@@ -1,13 +1,13 @@
--- [[ OMEGA-Z V11.0: ALIVE STATE TARGETING ]] --
+-- [[ AL-AMIR ULTIMATE V12.0 - FINAL FIX ]] --
 local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local LP = Players.LocalPlayer
 
--- [1] تنظيف البيئة من أي واجهات سابقة
+-- [1] تنظيف شامل لكل شيء قديم لمنع التداخل (الموجود في صورك)
 pcall(function()
     for _, v in pairs(LP.PlayerGui:GetChildren()) do
-        if v:IsA("ScreenGui") and v.Name == "BB_ALIVE_ENGINE" then
+        if v:IsA("ScreenGui") and (v.Name:find("BB") or v.Name:find("Kernel") or v.Name:find("Alive")) then
             v:Destroy()
         end
     end
@@ -15,145 +15,124 @@ end)
 
 local CFG = { Walk = false, Jump = false, AntiLag = false }
 local JumpCount = 0
-local MoveDir = Vector3.new(0, 0, 0)
 
--- [2] بناء الواجهة المتكاملة
-local SG = Instance.new("ScreenGui", LP:WaitForChild("PlayerGui"))
-SG.Name = "BB_ALIVE_ENGINE"
+-- [2] دالة التحقق من المكان (هل أنا في المباراة؟)
+local function IsInArena()
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return false end
+    
+    -- إذا كان ارتفاع اللاعب (Y) أقل من مستوى معين أو في منطقة اللوبي، سيتوقف
+    -- في Blade Ball، ساحة القتال عادة تكون في إحداثيات معينة، أو بعيدة عن منطقة الرسباون
+    -- سنستخدم التحقق من وجود "الكرة" كدليل قاطع داخل المباراة
+    if workspace:FindFirstChild("Ball", true) or workspace:FindFirstChild("BaseBall", true) then
+        return true
+    end
+    return false
+end
+
+-- [3] الواجهة (الزر العائم والقائمة)
+local SG = Instance.new("ScreenGui", LP.PlayerGui)
+SG.Name = "BB_FINAL_V12"
 SG.ResetOnSpawn = false
 
 local FloatingBtn = Instance.new("TextButton", SG)
 FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
-FloatingBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
-FloatingBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 255)
+FloatingBtn.Position = UDim2.new(0, 10, 0.5, 0)
 FloatingBtn.Text = "B"
-FloatingBtn.TextColor3 = Color3.new(1, 1, 1)
-FloatingBtn.Font = Enum.Font.GothamBold
-FloatingBtn.TextSize = 22
+FloatingBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+FloatingBtn.TextColor3 = Color3.new(1,1,1)
 Instance.new("UICorner", FloatingBtn).CornerRadius = UDim.new(1, 0)
 
 local Main = Instance.new("Frame", SG)
-Main.Size = UDim2.new(0, 220, 0, 310)
-Main.Position = UDim2.new(0.5, -110, 0.5, -155)
-Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+Main.Size = UDim2.new(0, 210, 0, 320)
+Main.Position = UDim2.new(0.5, -105, 0.5, -160)
+Main.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
 Main.Visible = false
 Main.Active = true
 Main.Draggable = true
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", Main)
 
-FloatingBtn.MouseButton1Click:Connect(function()
-    Main.Visible = not Main.Visible
-end)
+FloatingBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
-local function CreateToggle(txt, y, callback)
+local function CreateBtn(txt, y, callback)
     local btn = Instance.new("TextButton", Main)
     btn.Size = UDim2.new(0.9, 0, 0, 45)
     btn.Position = UDim2.new(0.05, 0, 0, y)
-    btn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     btn.Text = txt .. ": OFF"
-    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.TextColor3 = Color3.new(1,1,1)
     btn.Font = Enum.Font.GothamBold
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    Instance.new("UICorner", btn)
 
     local state = false
     btn.MouseButton1Click:Connect(function()
         state = not state
         btn.Text = txt .. ": " .. (state and "ON" or "OFF")
-        btn.BackgroundColor3 = state and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(35, 35, 45)
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(30, 30, 40)
         callback(state)
     end)
 end
 
--- [3] الأزرار التشغيلية
-CreateToggle("Smart Auto Walk", 20, function(on) CFG.Walk = on end)
-CreateToggle("Double Jump", 80, function(on) CFG.Jump = on end)
-CreateToggle("Super Anti-Lag", 140, function(on) 
-    CFG.AntiLag = on
+-- [4] تفعيل الأزرار
+CreateBtn("Smart Walk", 20, function(on) CFG.Walk = on end)
+CreateBtn("Double Jump", 75, function(on) CFG.Jump = on end)
+CreateBtn("Anti-Lag", 130, function(on) 
     if on then
-        pcall(function()
-            settings().Rendering.QualityLevel = 1
-            for _, v in pairs(workspace:GetDescendants()) do
-                if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
-            end
-        end)
-    end
-end)
-
-local CloseBtn = Instance.new("TextButton", Main)
-CloseBtn.Size = UDim2.new(0.9, 0, 0, 40)
-CloseBtn.Position = UDim2.new(0.05, 0, 0, 250)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 40, 40)
-CloseBtn.Text = "DESTROY SCRIPT"
-CloseBtn.TextColor3 = Color3.new(1, 1, 1)
-CloseBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 6)
-CloseBtn.MouseButton1Click:Connect(function() SG:Destroy() end)
-
--- [4] دالة التحقق القطعية (Absolute Match Verification)
-local function IsPlayerAliveInMatch()
-    local char = LP.Character
-    if not char then return false end
-    
-    -- في Blade Ball، اللاعبون النشطون في المباراة يتواجدون داخل مجلد "Alive"
-    local aliveFolder = workspace:FindFirstChild("Alive")
-    if aliveFolder and char.Parent == aliveFolder then
-        return true
-    end
-    
-    return false
-end
-
--- [5] المحرك السلوكي (Behavioral Engine)
--- تحديد المتجهات العشوائية
-task.spawn(function()
-    while task.wait(0.4) do
-        if CFG.Walk and IsPlayerAliveInMatch() then
-            MoveDir = Vector3.new(math.random(-10, 10), 0, math.random(-10, 10)).Unit
-        else
-            MoveDir = Vector3.new(0, 0, 0)
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
         end
     end
 end)
 
--- تنفيذ الحركة القسرية
+local Close = Instance.new("TextButton", Main)
+Close.Size = UDim2.new(0.9, 0, 0, 40)
+Close.Position = UDim2.new(0.05, 0, 0, 200)
+Close.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
+Close.Text = "CLOSE SCRIPT"
+Close.MouseButton1Click:Connect(function() SG:Destroy() end)
+
+-- [5] محرك الحركة (المشي فقط في المباراة)
+local MoveDir = Vector3.new(1, 0, 1)
+task.spawn(function()
+    while task.wait(0.5) do
+        MoveDir = Vector3.new(math.random(-1, 1), 0, math.random(-1, 1))
+    end
+end)
+
 RunService.RenderStepped:Connect(function()
-    local char = LP.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    if hum then
-        -- إذا كان اللاعب حياً والميزة مفعلة، سيتم إجبار المحرك على المشي
-        if CFG.Walk and IsPlayerAliveInMatch() then
+    if CFG.Walk and IsInArena() then
+        local char = LP.Character
+        local hum = char and char:FindFirstChild("Humanoid")
+        if hum then
             hum:Move(MoveDir, true)
         end
     end
 end)
 
--- [6] محرك القفز التكيفي (Adaptive Jump Engine)
-RunService.Heartbeat:Connect(function()
-    local char = LP.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    if hum then
-        local state = hum:GetState()
-        -- تصفير العداد عند لمس الأرض
-        if state == Enum.HumanoidStateType.Landed or state == Enum.HumanoidStateType.Running then
-            JumpCount = 0
-        -- تسجيل القفزة الأولى
-        elseif state == Enum.HumanoidStateType.Jumping and JumpCount == 0 then
-            JumpCount = 1
-        end
-    end
-end)
-
+-- [6] محرك القفز (تصحيح نهائي)
 UserInputService.JumpRequest:Connect(function()
     if CFG.Jump then
         local char = LP.Character
+        local hum = char and char:FindFirstChild("Humanoid")
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         
-        -- إذا كانت القفزة الأولى قد تمت، قم بتفعيل القفزة الثانية قسرياً
-        if hrp and JumpCount == 1 then
-            JumpCount = 2
-            hrp.Velocity = Vector3.new(hrp.Velocity.X, 60, hrp.Velocity.Z)
+        if hum and hrp then
+            if hum:GetState() == Enum.HumanoidStateType.Jumping or hum:GetState() == Enum.HumanoidStateType.Freefall then
+                if JumpCount < 1 then
+                    JumpCount = 1
+                    -- دفع فيزيائي للأعلى يتخطى حماية اللعبة
+                    hrp.Velocity = Vector3.new(hrp.Velocity.X, 60, hrp.Velocity.Z)
+                end
+            end
         end
     end
 end)
 
-print("Protocol V11.0: Alive Tracking Injected")
+RunService.Heartbeat:Connect(function()
+    local char = LP.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    if hum and (hum.FloorMaterial ~= Enum.Material.Air) then
+        JumpCount = 0
+    end
+end)
