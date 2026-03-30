@@ -1,197 +1,149 @@
--- [[ AL-AMIR DASHBOARD V8.5 - MODERN UI RE-DESIGN ]] --
+-- [[ AL-AMIR DASHBOARD V8.6 - THE FINAL FIX ]] --
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
-local Lighting = game:GetService("Lighting")
 local RS = game:GetService("ReplicatedStorage")
 
 repeat task.wait() until Players.LocalPlayer
 local LP = Players.LocalPlayer
 
--- [1] تنظيف النسخ القديمة
+-- [1] تنظيف شامل للواجهات القديمة
 pcall(function()
-    for _, g in ipairs({game:GetService("CoreGui"), LP:WaitForChild("PlayerGui")}) do
-        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v12","BB_FINAL_V13"}) do
-            local old = g:FindFirstChild(n)
-            if old then old:Destroy() end
-        end
+    for _, v in pairs(LP.PlayerGui:GetChildren()) do
+        if v.Name:find("BB_") or v.Name:find("AL_AMIR") then v:Destroy() end
     end
 end)
 
--- [2] منطق السكربت (Logic) - لا تغيير هنا لضمان الكفاءة
-local Balls = workspace:WaitForChild("Balls", 10)
-local CFG = { AutoJump = false, JumpInterval = 1.0, AutoWalk = false, RandomMove = false, MoveInterval = 0.4, AntiLag = false }
-local lastJump, lastWalk, lastRandom = 0, 0, 0
+-- [2] منطق الحركة الأصلي (الذي يعمل لديك)
+local Balls = workspace:WaitForChild("Balls", 15)
+local CFG = { AutoJump = false, AutoWalk = false, AntiLag = false }
+local lastJump, lastWalk = 0, 0
 local Dirs = { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1) }
 
 local function IsMovingBallExists()
     if not Balls then return false end
     for _, ball in ipairs(Balls:GetChildren()) do
-        if ball:IsA("BasePart") and ball.AssemblyLinearVelocity.Magnitude > 10 then return true end
+        if ball:IsA("BasePart") and ball.AssemblyLinearVelocity.Magnitude > 10 then
+            return true
+        end
     end
     return false
 end
 
+-- [3] محرك التشغيل (Loop)
 RunService.Heartbeat:Connect(function()
-    pcall(function()
-        local char = LP.Character
-        local hum = char and char:FindFirstChild("Humanoid")
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        if not hum or not hrp then return end
-        
-        local now = tick()
-        if IsMovingBallExists() then
-            if CFG.AutoJump and now - lastJump >= CFG.JumpInterval then
-                lastJump = now
-                hum.Jump = true
-                task.delay(0.15, function() hum.Jump = true end)
-            end
-            if CFG.AutoWalk and now - lastWalk >= 0.6 then
-                lastWalk = now
-                hum:MoveTo(hrp.Position + Dirs[math.random(1, #Dirs)] * 22)
-            end
-        end
-    end)
+    local char = LP.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or not hrp then return end
+
+    local now = tick()
+    local isActive = IsMovingBallExists()
+
+    -- القفز التلقائي (المنطق الأصلي)
+    if CFG.AutoJump and isActive and now - lastJump >= 1.0 then
+        lastJump = now
+        hum.Jump = true
+        task.delay(0.15, function() if hum then hum.Jump = true end end)
+    end
+
+    -- المشي التلقائي (المنطق الأصلي)
+    if CFG.AutoWalk and isActive and now - lastWalk >= 0.6 then
+        lastWalk = now
+        hum:MoveTo(hrp.Position + Dirs[math.random(1, #Dirs)] * 22)
+    end
 end)
 
--- [3] تصميم الواجهة الجديدة (Modern UI)
-local C = {
-    BG = Color3.fromRGB(15, 15, 20),
-    Accent = Color3.fromRGB(0, 255, 162), -- نيون أخضر/أزرق
-    Card = Color3.fromRGB(25, 25, 35),
-    Text = Color3.fromRGB(255, 255, 255),
-    Muted = Color3.fromRGB(150, 150, 160)
-}
-
+-- [4] واجهة المستخدم المودرن (Neon Red & Black)
 local SG = Instance.new("ScreenGui", LP.PlayerGui)
-SG.Name = "BB_AL_AMIR_V85"
+SG.Name = "BB_AL_AMIR_FINAL"
 SG.ResetOnSpawn = false
 
--- الزر العائم (Floating Icon)
+-- الزر العائم B
 local Icon = Instance.new("TextButton", SG)
-Icon.Size = UDim2.new(0, 55, 0, 55)
-Icon.Position = UDim2.new(0, 15, 0.5, -27)
-Icon.BackgroundColor3 = C.BG
-Icon.Text = "A" -- اختصار AL-AMIR
-Icon.TextColor3 = C.Accent
+Icon.Size = UDim2.new(0, 50, 0, 50)
+Icon.Position = UDim2.new(0, 10, 0.4, 0)
+Icon.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Icon.Text = "B"
+Icon.TextColor3 = Color3.fromRGB(255, 50, 50)
 Icon.Font = Enum.Font.GothamBold
-Icon.TextSize = 24
+Icon.TextSize = 25
 Instance.new("UICorner", Icon).CornerRadius = UDim.new(1, 0)
-local Stroke = Instance.new("UIStroke", Icon)
-Stroke.Color = C.Accent
-Stroke.Thickness = 2
+Instance.new("UIStroke", Icon).Color = Color3.fromRGB(255, 50, 50)
 
--- النافذة الرئيسية
+-- القائمة الرئيسية
 local Main = Instance.new("Frame", SG)
-Main.Size = UDim2.new(0, 240, 0, 340)
-Main.Position = UDim2.new(0.5, -120, 0.5, -170)
-Main.BackgroundColor3 = C.BG
+Main.Size = UDim2.new(0, 220, 0, 280)
+Main.Position = UDim2.new(0.5, -110, 0.5, -140)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
 Main.Visible = false
-Main.ClipsDescendants = true
-Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 15)
+Main.Active = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 12)
+Instance.new("UIStroke", Main).Color = Color3.fromRGB(40, 40, 40)
 
--- سحب النافذة (Draggable)
-local drag, sp, sw
-Main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = true sp = i.Position sw = Main.Position end end)
-UserInputService.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - sp Main.Position = UDim2.new(sw.X.Scale, sw.X.Offset + d.X, sw.Y.Scale, sw.Y.Offset + d.Y) end end)
-UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
-
--- Header
 local Title = Instance.new("TextLabel", Main)
-Title.Size = UDim2.new(1, 0, 0, 50)
-Title.Text = "AL-AMIR DASHBOARD"
-Title.TextColor3 = C.Text
+Title.Size = UDim2.new(1, 0, 0, 45)
+Title.Text = "AL-AMIR V8.6"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.Font = Enum.Font.GothamBold
-Title.TextSize = 14
 Title.BackgroundTransparency = 1
 
--- Containers for Toggles
-local Container = Instance.new("ScrollingFrame", Main)
-Container.Size = UDim2.new(1, -20, 1, -110)
-Container.Position = UDim2.new(0, 10, 0, 60)
-Container.BackgroundTransparency = 1
-Container.ScrollBarThickness = 0
-local Layout = Instance.new("UIListLayout", Container)
-Layout.Padding = UDim.new(0, 10)
+-- دالة إنشاء الأزرار بشكل عصري
+local function CreateToggle(name, y, callback)
+    local btn = Instance.new("TextButton", Main)
+    btn.Size = UDim2.new(0.85, 0, 0, 45)
+    btn.Position = UDim2.new(0.075, 0, 0, y)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    btn.Text = name .. ": OFF"
+    btn.TextColor3 = Color3.new(1, 1, 1)
+    btn.Font = Enum.Font.GothamBold
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 
--- Function to create Modern Toggles
-local function CreateToggle(name, desc, default, callback)
-    local frame = Instance.new("Frame", Container)
-    frame.Size = UDim2.new(1, 0, 0, 55)
-    frame.BackgroundColor3 = C.Card
-    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
-
-    local namelbl = Instance.new("TextLabel", frame)
-    namelbl.Size = UDim2.new(1, -60, 0, 30)
-    namelbl.Position = UDim2.new(0, 12, 0, 5)
-    namelbl.Text = name
-    namelbl.TextColor3 = C.Text
-    namelbl.Font = Enum.Font.GothamBold
-    namelbl.TextSize = 12
-    namelbl.TextXAlignment = Enum.TextXAlignment.Left
-    namelbl.BackgroundTransparency = 1
-
-    local desclbl = Instance.new("TextLabel", frame)
-    desclbl.Size = UDim2.new(1, -60, 0, 20)
-    desclbl.Position = UDim2.new(0, 12, 0, 28)
-    desclbl.Text = desc
-    desclbl.TextColor3 = C.Muted
-    desclbl.Font = Enum.Font.Gotham
-    desclbl.TextSize = 9
-    desclbl.TextXAlignment = Enum.TextXAlignment.Left
-    desclbl.BackgroundTransparency = 1
-
-    local btn = Instance.new("TextButton", frame)
-    btn.Size = UDim2.new(0, 40, 0, 22)
-    btn.Position = UDim2.new(1, -52, 0.5, -11)
-    btn.BackgroundColor3 = default and C.Accent or Color3.fromRGB(50, 50, 60)
-    btn.Text = ""
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
-
-    local circle = Instance.new("Frame", btn)
-    circle.Size = UDim2.new(0, 16, 0, 16)
-    circle.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
-    circle.BackgroundColor3 = Color3.new(1,1,1)
-    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
-
-    local state = default
+    local active = false
     btn.MouseButton1Click:Connect(function()
-        state = not state
-        callback(state)
-        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = state and C.Accent or Color3.fromRGB(50, 50, 60)}):Play()
-        TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
+        active = not active
+        callback(active)
+        btn.Text = name .. ": " .. (active and "ON" or "OFF")
+        btn.BackgroundColor3 = active and Color3.fromRGB(180, 0, 0) or Color3.fromRGB(30, 30, 30)
     end)
 end
 
--- الأزرار الفعلية
-CreateToggle("Auto Jump", "قفز قسري عند اقتراب الكرة", CFG.AutoJump, function(v) CFG.AutoJump = v end)
-CreateToggle("Smart Walk", "يتحرك فقط داخل الحلبة", CFG.AutoWalk, function(v) CFG.AutoWalk = v end)
-CreateToggle("Anti-Lag", "تحسين الأداء وإزالة اللاغ", false, function(v) 
-    if v then 
-        for _, x in pairs(workspace:GetDescendants()) do 
-            if x:IsA("ParticleEmitter") or x:IsA("Trail") then x.Enabled = false end 
-        end 
+CreateToggle("Auto Jump", 60, function(v) CFG.AutoJump = v end)
+CreateToggle("Smart Walk", 115, function(v) CFG.AutoWalk = v end)
+CreateToggle("Anti-Lag", 170, function(v)
+    if v then
+        for _, x in pairs(workspace:GetDescendants()) do
+            if x:IsA("ParticleEmitter") or x:IsA("Trail") then x.Enabled = false end
+        end
     end
 end)
 
--- زر الإغلاق (Close)
-local CloseBtn = Instance.new("TextButton", Main)
-CloseBtn.Size = UDim2.new(1, -20, 0, 40)
-CloseBtn.Position = UDim2.new(0, 10, 1, -50)
-CloseBtn.BackgroundColor3 = Color3.fromRGB(40, 20, 20)
-CloseBtn.Text = "إيقاف السكربت"
-CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-CloseBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 10)
+local Close = Instance.new("TextButton", Main)
+Close.Size = UDim2.new(0.85, 0, 0, 35)
+Close.Position = UDim2.new(0.075, 0, 0, 230)
+Close.Text = "إغلاق السكربت"
+Close.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+Close.TextColor3 = Color3.new(0.6, 0.6, 0.6)
+Instance.new("UICorner", Close)
+Close.MouseButton1Click:Connect(function() SG:Destroy() end)
 
--- وظائف فتح وإغلاق الواجهة
-Icon.MouseButton1Click:Connect(function()
-    Main.Visible = not Main.Visible
-    if Main.Visible then
-        Main.Size = UDim2.new(0, 240, 0, 0)
-        TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {Size = UDim2.new(0, 240, 0, 340)}):Play()
+-- فتح وإغلاق القائمة
+Icon.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
+
+-- جعل النافذة قابلة للسحب على الهاتف
+local dragging, dragStart, startPos
+Main.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true dragStart = input.Position startPos = Main.Position
     end
 end)
-
-CloseBtn.MouseButton1Click:Connect(function() SG:Destroy() end)
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        Main.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end
+end)
