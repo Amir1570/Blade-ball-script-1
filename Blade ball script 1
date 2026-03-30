@@ -1,31 +1,33 @@
--- [[ OMEGA-Z MOBLIE RECOVERY: BLADE BALL ]] --
+-- [[ OMEGA-Z FORCE-ACTION ENGINE ]] --
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
-local PlayerGui = Player:WaitForChild("PlayerGui")
 
--- تنظيف الواجهات القديمة لضمان عمل الواجهة الجديدة
-for _, oldGui in pairs(PlayerGui:GetChildren()) do
-    if oldGui.Name == "BladeBall_Pro" then oldGui:Destroy() end
+-- تنظيف الواجهات القديمة
+for _, old in pairs(PlayerGui:GetChildren()) do
+    if old.Name == "BladeBall_Omega" then old:Destroy() end
 end
 
--- [1] نظام الواجهة الموحد (UI System)
+-- [1] واجهة المستخدم (UI System)
 local ScreenGui = Instance.new("ScreenGui", PlayerGui)
-ScreenGui.Name = "BladeBall_Pro"
+ScreenGui.Name = "BladeBall_Omega"
 ScreenGui.ResetOnSpawn = false
 
 local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 200, 0, 280)
-MainFrame.Position = UDim2.new(0.5, -100, 0.5, -140)
-MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
-MainFrame.Active = true
-MainFrame.Draggable = true -- دعم الهاتف
+MainFrame.Size = UDim2.new(0, 210, 0, 300)
+MainFrame.Position = UDim2.new(0.5, -105, 0.5, -150)
+MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 0)
 MainFrame.Visible = false
+MainFrame.Active = true
+MainFrame.Draggable = true
 
 local FloatingBtn = Instance.new("TextButton", ScreenGui)
 FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
-FloatingBtn.Position = UDim2.new(0.05, 0, 0.4, 0)
+FloatingBtn.Position = UDim2.new(0.1, 0, 0.5, 0)
 FloatingBtn.Text = "B"
 FloatingBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
 local Corner = Instance.new("UICorner", FloatingBtn)
@@ -35,45 +37,37 @@ FloatingBtn.MouseButton1Click:Connect(function()
     MainFrame.Visible = not MainFrame.Visible
 end)
 
--- [2] متغيرات الحالة (State Variables)
+-- [2] المتغيرات التقنية
 local Config = { Walk = false, Jump = true }
 local JumpCount = 0
 
 local function CreateBtn(txt, y, callback)
     local b = Instance.new("TextButton", MainFrame)
-    b.Size = UDim2.new(0.9, 0, 0, 40)
+    b.Size = UDim2.new(0.9, 0, 0, 45)
     b.Position = UDim2.new(0.05, 0, 0, y)
     b.Text = txt
-    b.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-    b.TextColor3 = Color3.new(1,1,1)
+    b.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    b.TextColor3 = Color3.new(1, 1, 1)
     b.MouseButton1Click:Connect(function() callback(b) end)
+    return b
 end
 
--- [3] تصحيح المشي: متحسس المباراة المعدل
-local function ShouldWalk()
-    local Char = Player.Character
-    local Root = Char and Char:FindFirstChild("HumanoidRootPart")
-    if not Root then return false end
-    
-    -- في اللوبي، غالباً ما تكون هناك منصات انتظار كبيرة.
-    -- هذا الفحص يبحث إذا كان هناك مجلد مبارزة أو إذا كانت الكرة بعيدة (يعني بدأت).
-    local Ball = workspace:FindFirstChild("Ball")
-    if Ball then
-        local DistToBall = (Root.Position - Ball.Position).Magnitude
-        if DistToBall < 100 then return true end -- المباراة على وشك البدء أو بدأت
-    end
-    
-    return workspace:FindFirstChild("GameMode") ~= nil -- وجود وضع لعبة يعني بدأت
-end
-
+-- زر المشي: تم إزالة شرط "Ball" ليعمل فوراً بناءً على طلبك
 CreateBtn("Auto Walk: OFF", 20, function(self)
     Config.Walk = not Config.Walk
     self.Text = "Auto Walk: " .. (Config.Walk and "ON" or "OFF")
-    self.BackgroundColor3 = Config.Walk and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(40, 40, 40)
+    self.BackgroundColor3 = Config.Walk and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(35, 35, 35)
 end)
 
--- زر الـ Anti-Lag لضمان أداء السكربت
-CreateBtn("Super Anti-Lag", 80, function()
+-- زر القفز المزدوج (Double Jump)
+CreateBtn("Double Jump: ON", 80, function(self)
+    Config.Jump = not Config.Jump
+    self.Text = "Double Jump: " .. (Config.Jump and "ON" or "OFF")
+    self.BackgroundColor3 = Config.Jump and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(35, 35, 35)
+end)
+
+-- زر تقليل اللاغ (Anti-Lag)
+CreateBtn("Super Anti-Lag", 140, function()
     pcall(function()
         settings().Rendering.QualityLevel = 1
         for _, v in pairs(game:GetDescendants()) do
@@ -82,9 +76,9 @@ CreateBtn("Super Anti-Lag", 80, function()
     end)
 end)
 
-CreateBtn("Close SCRIPT", 220, function() ScreenGui:Destroy() end)
+CreateBtn("Close Script", 220, function() ScreenGui:Destroy() end)
 
--- [4] المحرك التنفيذي للقفز والمشي
+-- [3] المحرك التنفيذي (Core Engine)
 RunService.Heartbeat:Connect(function()
     local Char = Player.Character
     local Hum = Char and Char:FindFirstChild("Humanoid")
@@ -92,39 +86,34 @@ RunService.Heartbeat:Connect(function()
     
     if not Hum or Hum.Health == 0 then return end
     
-    -- المشي: لن يعمل في اللوبي
-    if Config.Walk and ShouldWalk() then
+    -- المشي العشوائي: يعمل الآن بمجرد تفعيل الزر (بدون شروط إضافية)
+    if Config.Walk then
         if Hum.MoveDirection.Magnitude == 0 then
-            Hum:MoveTo(Root.Position + Vector3.new(math.random(-25, 25), 0, math.random(-25, 25)))
+            local Target = Root.Position + Vector3.new(math.random(-20, 20), 0, math.random(-20, 20))
+            Hum:MoveTo(Target)
         end
     end
     
-    -- ريست القفز عند الهبوط (MOBILE SAFE CHECK)
+    -- ريست القفز (Mobile Safe)
     if Hum.FloorMaterial ~= Enum.Material.Air then
         JumpCount = 0
     end
 end)
 
--- [5] تصحيح القفز المزدوج على الهاتف (Forced Gravity Jump)
--- نستخدم InputBegan على زر الشاشة نفسه لضمان الالتقاط
-UserInputService.InputBegan:Connect(function(input, processed)
-    if Config.Jump and not processed then
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            local Char = Player.Character
-            local Hum = Char and Char:FindFirstChild("Humanoid")
-            
-            -- إذا لم يتم تفعيل JumpRequest، نقوم بتفعيله قسرياً
-            if Hum and JumpCount < 2 then
-                JumpCount = JumpCount + 1
-                
-                if JumpCount == 2 then
-                    -- القفزة الثانية قسرية عبر تعديل Velocity
-                    Char.PrimaryPart.Velocity = Vector3.new(Char.PrimaryPart.Velocity.X, 60, Char.PrimaryPart.Velocity.Z)
-                end
+-- [4] منطق القفز المزدوج (القسري)
+UserInputService.JumpRequest:Connect(function()
+    if Config.Jump then
+        local Char = Player.Character
+        local Hum = Char and Char:FindFirstChild("Humanoid")
+        
+        if Hum and JumpCount < 2 then
+            JumpCount = JumpCount + 1
+            if JumpCount == 2 then
+                -- قفزة ثانية قوية لضمان العمل على الهاتف
+                Char.PrimaryPart.Velocity = Vector3.new(Char.PrimaryPart.Velocity.X, 65, Char.PrimaryPart.Velocity.Z)
             end
         end
     end
 end)
 
-print("Omega-Z Mobile Engine Loaded.")
- 
+print("Blade Ball Force Engine Loaded.")
