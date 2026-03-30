@@ -1,6 +1,5 @@
 -- ================================================
--- Blade Ball Raw Script v7.1 - FIXED UI
--- Radial Field + Smart Parry + Floating Tab + Full Toggles
+-- Blade Ball Raw Script v7.1 - FIXED FINAL
 -- ================================================
 
 local Players = game:GetService("Players")
@@ -21,30 +20,28 @@ local RootPart = Character:WaitForChild("HumanoidRootPart")
 -- ====================== إعدادات ======================
 local SettingsFile = "BladeBall_Raw_v7_1.json"
 local Settings = {
-    AutoWalk = true,
-    DoubleJump = true,
+    AutoWalk     = true,
+    DoubleJump   = true,
     UltraAntiLag = true,
-    AutoParry = true,
-    AutoAbility = true,
-    RadialField = true,
+    AutoParry    = true,
+    AutoAbility  = true,
+    RadialField  = true,
 }
 
 local function LoadSettings()
     if isfile and isfile(SettingsFile) then
-        local success, data = pcall(function() return HttpService:JSONDecode(readfile(SettingsFile)) end)
-        if success then Settings = data end
+        local ok, data = pcall(function() return HttpService:JSONDecode(readfile(SettingsFile)) end)
+        if ok then Settings = data end
     end
 end
-
 local function SaveSettings()
     if writefile then
         pcall(function() writefile(SettingsFile, HttpService:JSONEncode(Settings)) end)
     end
 end
-
 LoadSettings()
 
--- ====================== Levi Walk + Match Detection ======================
+-- ====================== Levi Walk ======================
 local InMatch = false
 local RandomWalkThread = nil
 
@@ -59,7 +56,7 @@ local function StartRandomWalk()
             local rx = math.random(-70, 70)
             local rz = math.random(-70, 70)
             local target = RootPart.Position + Vector3.new(rx, 5, rz)
-            local path = PathfindingService:CreatePath({AgentRadius = 3, AgentHeight = 6, AgentCanJump = true})
+            local path = PathfindingService:CreatePath({AgentRadius=3, AgentHeight=6, AgentCanJump=true})
             path:ComputeAsync(RootPart.Position, target)
             if path.Status == Enum.PathStatus.Success then
                 for _, wp in ipairs(path:GetWaypoints()) do
@@ -85,86 +82,30 @@ local function StopRandomWalk()
     if Humanoid then Humanoid:MoveTo(RootPart.Position) end
 end
 
--- مراقبة المباراة
-Workspace.ChildAdded:Connect(function(child)
-    if child.Name == "Ball" or child.Name == "TheBall" then
+Workspace.ChildAdded:Connect(function(c)
+    if c.Name == "Ball" or c.Name == "TheBall" then
         InMatch = true
         if Settings.AutoWalk then StartRandomWalk() end
     end
 end)
-
-Workspace.ChildRemoved:Connect(function(child)
-    if child.Name == "Ball" or child.Name == "TheBall" then
-        InMatch = false
-        StopRandomWalk()
+Workspace.ChildRemoved:Connect(function(c)
+    if c.Name == "Ball" or c.Name == "TheBall" then
+        InMatch = false; StopRandomWalk()
     end
 end)
 
--- ====================== Radial Field ======================
-local RadialGui = Instance.new("ScreenGui")
-RadialGui.ResetOnSpawn = false
-RadialGui.Parent = LocalPlayer.PlayerGui
-
-local RadialFrame = Instance.new("Frame")
-RadialFrame.Size = UDim2.new(0, 420, 0, 420)
-RadialFrame.Position = UDim2.new(0.5, -210, 0.5, -210)
-RadialFrame.BackgroundTransparency = 1
-RadialFrame.Parent = RadialGui
-
-Instance.new("UICorner", RadialFrame).CornerRadius = UDim.new(0.5, 0)
-
-local RadialStroke = Instance.new("UIStroke")
-RadialStroke.Thickness = 14
-RadialStroke.Transparency = 0.35
-RadialStroke.Parent = RadialFrame
-
-local function UpdateRadialField()
-    if not Settings.RadialField then
-        RadialStroke.Color = Color3.fromRGB(80, 80, 80)
-        return
-    end
-    local ball = Workspace:FindFirstChild("Ball") or Workspace:FindFirstChild("TheBall")
-    if not ball or not RootPart then 
-        RadialStroke.Color = Color3.fromRGB(100, 100, 100)
-        RadialFrame.Size = UDim2.new(0, 380, 0, 380)
-        return 
-    end
-
-    local dist = (ball.Position - RootPart.Position).Magnitude
-    local speed = ball.Velocity.Magnitude
-
-    if dist < 25 and speed > 18 then
-        RadialStroke.Color = Color3.fromRGB(0, 255, 80)   -- Green
-        RadialFrame.Size = UDim2.new(0, 460, 0, 460)
-    elseif dist < 35 then
-        RadialStroke.Color = Color3.fromRGB(255, 200, 0)  -- Yellow
-        RadialFrame.Size = UDim2.new(0, 410, 0, 410)
-    else
-        RadialStroke.Color = Color3.fromRGB(255, 50, 50)  -- Red
-        RadialFrame.Size = UDim2.new(0, 380, 0, 380)
-    end
-end
-
-RunService.RenderStepped:Connect(UpdateRadialField)
-
 -- ====================== Auto Parry ======================
-local ParryRemote = nil
-local AbilityRemote = nil
+local ParryRemote, AbilityRemote
 local parryRunning = false
-local parryThread = nil
+local parryThread  = nil
 
-local function FindParryRemotes()
-    pcall(function()
-        local Remotes = ReplicatedStorage:FindFirstChild("Remotes")
-        if Remotes then
-            ParryRemote   = Remotes:FindFirstChild("ParryButtonPress")
-                         or Remotes:FindFirstChild("Parry")
-            AbilityRemote = Remotes:FindFirstChild("AbilityButtonPress")
-                         or Remotes:FindFirstChild("Ability")
-        end
-    end)
-end
-FindParryRemotes()
+pcall(function()
+    local R = ReplicatedStorage:FindFirstChild("Remotes")
+    if R then
+        ParryRemote   = R:FindFirstChild("ParryButtonPress") or R:FindFirstChild("Parry")
+        AbilityRemote = R:FindFirstChild("AbilityButtonPress") or R:FindFirstChild("Ability")
+    end
+end)
 
 local function StartSmartAutoParry()
     if parryRunning then return end
@@ -175,12 +116,8 @@ local function StartSmartAutoParry()
                 if not Settings.AutoParry then return end
                 local char = LocalPlayer.Character
                 if not char then return end
-                -- الصد عند وجود Highlight (الكرة تستهدفك)
                 if char:FindFirstChild("Highlight") then
-                    if ParryRemote then
-                        pcall(function() ParryRemote:FireServer() end)
-                    end
-                    -- القدرة التلقائية
+                    if ParryRemote   then pcall(function() ParryRemote:FireServer()   end) end
                     if Settings.AutoAbility and AbilityRemote then
                         pcall(function() AbilityRemote:FireServer() end)
                     end
@@ -193,66 +130,96 @@ end
 
 local function StopSmartAutoParry()
     parryRunning = false
-    if parryThread then
-        pcall(function() task.cancel(parryThread) end)
-        parryThread = nil
-    end
+    if parryThread then pcall(function() task.cancel(parryThread) end); parryThread = nil end
 end
 
 -- ====================== Ultra Anti-Lag ======================
 local function ActivateUltraAntiLag()
     pcall(function()
         Lighting.GlobalShadows = false
-        Lighting.FogEnd        = 9e9
-        Lighting.FogStart      = 9e9
-        Lighting.Brightness    = 2
-
-        -- رمادي
+        Lighting.FogEnd = 9e9; Lighting.FogStart = 9e9; Lighting.Brightness = 2
         if not Lighting:FindFirstChild("BB_CC") then
             local cc = Instance.new("ColorCorrectionEffect")
-            cc.Name = "BB_CC"
-            cc.Saturation = -1
-            cc.Parent = Lighting
+            cc.Name = "BB_CC"; cc.Saturation = -1; cc.Parent = Lighting
         end
-
         for _, v in ipairs(workspace:GetDescendants()) do
             pcall(function()
-                if v:IsA("ParticleEmitter") or v:IsA("Trail")
-                or v:IsA("Smoke") or v:IsA("Fire") or v:IsA("Sparkles") then
-                    v.Enabled = false
-                end
+                if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Smoke")
+                or v:IsA("Fire") or v:IsA("Sparkles") then v.Enabled = false end
                 if v:IsA("BloomEffect") or v:IsA("BlurEffect")
-                or v:IsA("SunRaysEffect") or v:IsA("DepthOfFieldEffect") then
-                    v.Enabled = false
-                end
-                if v:IsA("BasePart") then
-                    v.CastShadow = false
-                end
+                or v:IsA("SunRaysEffect") or v:IsA("DepthOfFieldEffect") then v.Enabled = false end
+                if v:IsA("BasePart") then v.CastShadow = false end
             end)
         end
     end)
 end
 
--- ====================== الواجهة الرئيسية (الصندوق الأسود) ======================
+-- ====================== Radial Field ======================
+-- الإصلاح: Active = false على الـ RadialFrame حتى لا يمنع حركة الكاميرا
+local RadialGui = Instance.new("ScreenGui")
+RadialGui.ResetOnSpawn = false
+RadialGui.DisplayOrder = 1  -- وراء الواجهة
+pcall(function() RadialGui.Parent = game:GetService("CoreGui") end)
+if not RadialGui.Parent then RadialGui.Parent = LocalPlayer.PlayerGui end
+
+local RadialFrame = Instance.new("Frame")
+RadialFrame.Size = UDim2.new(0, 420, 0, 420)
+RadialFrame.Position = UDim2.new(0.5, -210, 0.5, -210)
+RadialFrame.BackgroundTransparency = 1
+RadialFrame.Active = false          -- ✅ لا يمنع الكاميرا
+RadialFrame.Parent = RadialGui
+Instance.new("UICorner", RadialFrame).CornerRadius = UDim.new(0.5, 0)
+
+local RadialStroke = Instance.new("UIStroke")
+RadialStroke.Thickness = 14
+RadialStroke.Transparency = 0.35
+RadialStroke.Parent = RadialFrame
+
+local function UpdateRadialField()
+    if not Settings.RadialField then
+        RadialStroke.Color = Color3.fromRGB(80, 80, 80); return
+    end
+    local ball = Workspace:FindFirstChild("Ball") or Workspace:FindFirstChild("TheBall")
+    if not ball or not RootPart then
+        RadialStroke.Color = Color3.fromRGB(100, 100, 100)
+        RadialFrame.Size = UDim2.new(0, 380, 0, 380); return
+    end
+    local dist  = (ball.Position - RootPart.Position).Magnitude
+    local speed = ball.Velocity.Magnitude
+    if dist < 25 and speed > 18 then
+        RadialStroke.Color = Color3.fromRGB(0, 255, 80)
+        RadialFrame.Size   = UDim2.new(0, 460, 0, 460)
+    elseif dist < 35 then
+        RadialStroke.Color = Color3.fromRGB(255, 200, 0)
+        RadialFrame.Size   = UDim2.new(0, 410, 0, 410)
+    else
+        RadialStroke.Color = Color3.fromRGB(255, 50, 50)
+        RadialFrame.Size   = UDim2.new(0, 380, 0, 380)
+    end
+end
+
+RunService.RenderStepped:Connect(UpdateRadialField)
+
+-- ====================== الواجهة الرئيسية ======================
 local MainGui = Instance.new("ScreenGui")
 MainGui.ResetOnSpawn = false
 MainGui.DisplayOrder = 10
-MainGui.Parent = LocalPlayer.PlayerGui
+pcall(function() MainGui.Parent = game:GetService("CoreGui") end)
+if not MainGui.Parent then MainGui.Parent = LocalPlayer.PlayerGui end
 
+-- الـ ScrollingFrame يحل مشكلة الأزرار الناقصة على الشاشات الصغيرة
 local MainPanel = Instance.new("Frame")
-MainPanel.Size = UDim2.new(0, 300, 0, 490)
-MainPanel.Position = UDim2.new(0, 15, 0, 100)
+MainPanel.Size = UDim2.new(0, 300, 0, 55)  -- فقط الـ TitleBar ثابت
+MainPanel.AutomaticSize = Enum.AutomaticSize.Y  -- ✅ يكبر تلقائياً
+MainPanel.Position = UDim2.new(0, 15, 0, 80)
 MainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-MainPanel.Active = false  -- لا يمنع حركة الكاميرا
 MainPanel.Parent = MainGui
-
 Instance.new("UICorner", MainPanel).CornerRadius = UDim.new(0, 14)
 
 local TitleBar = Instance.new("Frame")
 TitleBar.Size = UDim2.new(1, 0, 0, 55)
 TitleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 TitleBar.Parent = MainPanel
-
 Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 14)
 
 local Title = Instance.new("TextLabel")
@@ -265,7 +232,6 @@ Title.TextSize = 24
 Title.Font = Enum.Font.GothamBold
 Title.Parent = TitleBar
 
--- زر الإغلاق
 local CloseBtn = Instance.new("TextButton")
 CloseBtn.Size = UDim2.new(0, 45, 0, 45)
 CloseBtn.Position = UDim2.new(1, -50, 0, 5)
@@ -276,23 +242,42 @@ CloseBtn.TextSize = 32
 CloseBtn.Font = Enum.Font.GothamBold
 CloseBtn.Parent = TitleBar
 CloseBtn.MouseButton1Click:Connect(function()
-    MainGui:Destroy()
-    RadialGui:Destroy()
+    MainGui:Destroy(); RadialGui:Destroy()
 end)
 
--- دالة إنشاء Toggle (مُصححة وكاملة)
-local lastTap = 0
-local function CreateToggle(text, key, yPos)
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, -20, 0, 58)
-    frame.Position = UDim2.new(0, 10, 0, yPos)
-    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-    frame.Parent = MainPanel
+-- ContentFrame يحمل الأزرار ويكبر تلقائياً
+local ContentFrame = Instance.new("Frame")
+ContentFrame.Size = UDim2.new(1, 0, 0, 0)
+ContentFrame.Position = UDim2.new(0, 0, 0, 55)
+ContentFrame.AutomaticSize = Enum.AutomaticSize.Y  -- ✅ يكبر تلقائياً
+ContentFrame.BackgroundTransparency = 1
+ContentFrame.Parent = MainPanel
 
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Padding = UDim.new(0, 6)
+ListLayout.Parent = ContentFrame
+
+local ContentPad = Instance.new("UIPadding")
+ContentPad.PaddingTop    = UDim.new(0, 8)
+ContentPad.PaddingBottom = UDim.new(0, 8)
+ContentPad.PaddingLeft   = UDim.new(0, 10)
+ContentPad.PaddingRight  = UDim.new(0, 10)
+ContentPad.Parent = ContentFrame
+
+-- ====================== دالة Toggle ======================
+local lastTap = 0
+local function CreateToggle(text, key, order)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 58)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    frame.LayoutOrder = order
+    frame.Parent = ContentFrame
     Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
 
     local label = Instance.new("TextLabel")
     label.Size = UDim2.new(0.65, 0, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
     label.BackgroundTransparency = 1
     label.Text = text
     label.TextColor3 = Color3.new(1,1,1)
@@ -311,48 +296,46 @@ local function CreateToggle(text, key, yPos)
     status.Font = Enum.Font.GothamBold
     status.Parent = frame
 
+    -- ✅ الإصلاح: InputBegan + InputEnded للكشف الصحيح عن الضغط
+    local touchStart = nil
     frame.InputBegan:Connect(function(inp)
-        if inp.UserInputType == Enum.UserInputType.Touch then
-            local startPos = inp.Position
-            inp.Changed:Connect(function()
-                if inp.UserInputState == Enum.UserInputState.End then
-                    local delta = (inp.Position - startPos).Magnitude
-                    if delta > 20 then return end
-                    if tick() - lastTap < 0.3 then return end
-                    lastTap = tick()
+        if inp.UserInputType == Enum.UserInputType.Touch
+        or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+            touchStart = inp.Position
+        end
+    end)
+    frame.InputEnded:Connect(function(inp)
+        if (inp.UserInputType == Enum.UserInputType.Touch
+        or inp.UserInputType == Enum.UserInputType.MouseButton1) and touchStart then
+            local delta = (inp.Position - touchStart).Magnitude
+            if delta > 20 then touchStart = nil; return end
+            if tick() - lastTap < 0.3 then touchStart = nil; return end
+            lastTap = tick()
+            touchStart = nil
 
-                    Settings[key] = not Settings[key]
-                    status.Text = Settings[key] and "ON" or "OFF"
-                    status.TextColor3 = Settings[key] and Color3.fromRGB(0, 255, 100) or Color3.fromRGB(180, 180, 180)
-                    SaveSettings()
+            Settings[key] = not Settings[key]
+            status.Text = Settings[key] and "ON" or "OFF"
+            status.TextColor3 = Settings[key] and Color3.fromRGB(0,255,100) or Color3.fromRGB(180,180,180)
+            SaveSettings()
 
-                    -- تطبيق التغييرات
-                    if key == "AutoWalk" then
-                        if Settings.AutoWalk and InMatch then StartRandomWalk() else StopRandomWalk() end
-                    elseif key == "DoubleJump" then
-                        -- Enable / Disable Double Jump
-                    elseif key == "UltraAntiLag" then
-                        if Settings.UltraAntiLag then ActivateUltraAntiLag() end
-                    elseif key == "AutoParry" then
-                        if Settings.AutoParry then StartSmartAutoParry() else StopSmartAutoParry() end
-                    elseif key == "AutoAbility" then
-                        -- Start / Stop Auto Ability
-                    elseif key == "RadialField" then
-                        -- Radial Field تفعيل/تعطيل
-                    end
-                end
-            end)
+            if key == "AutoWalk" then
+                if Settings.AutoWalk and InMatch then StartRandomWalk() else StopRandomWalk() end
+            elseif key == "UltraAntiLag" then
+                if Settings.UltraAntiLag then ActivateUltraAntiLag() end
+            elseif key == "AutoParry" then
+                if Settings.AutoParry then StartSmartAutoParry() else StopSmartAutoParry() end
+            end
         end
     end)
 end
 
--- إنشاء الخيارات (هذه هي المشكلة السابقة)
-CreateToggle("Auto Walk", "AutoWalk", 70)
-CreateToggle("Double Jump", "DoubleJump", 135)
-CreateToggle("Ultra Anti-Lag", "UltraAntiLag", 200)
-CreateToggle("Auto Parry", "AutoParry", 265)
-CreateToggle("Auto Ability", "AutoAbility", 330)
-CreateToggle("Radial Field", "RadialField", 395)
+-- ✅ كل الأزرار الستة
+CreateToggle("Auto Walk",     "AutoWalk",     1)
+CreateToggle("Double Jump",   "DoubleJump",   2)
+CreateToggle("Ultra Anti-Lag","UltraAntiLag", 3)
+CreateToggle("Auto Parry",    "AutoParry",    4)
+CreateToggle("Auto Ability",  "AutoAbility",  5)
+CreateToggle("Radial Field",  "RadialField",  6)
 
 -- ====================== Floating Tab (BB) ======================
 local FloatingTab = Instance.new("TextButton")
@@ -364,42 +347,79 @@ FloatingTab.TextColor3 = Color3.fromRGB(0, 180, 255)
 FloatingTab.TextSize = 30
 FloatingTab.Font = Enum.Font.GothamBold
 FloatingTab.Parent = MainGui
-
 Instance.new("UICorner", FloatingTab).CornerRadius = UDim.new(0.5, 0)
 
--- Draggable
-local dragging = false
-FloatingTab.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        local startPos = FloatingTab.Position
-        local startInput = input.Position
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then dragging = false end
-        end)
-        UserInputService.InputChanged:Connect(function(moveInput)
-            if dragging then
-                local delta = moveInput.Position - startInput
-                FloatingTab.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+-- سحب الـ Floating Tab
+local ftDrag = false
+local ftStartPos, ftStartInput
+FloatingTab.InputBegan:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.Touch
+    or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+        ftDrag = true
+        ftStartPos   = FloatingTab.Position
+        ftStartInput = inp.Position
+    end
+end)
+FloatingTab.InputEnded:Connect(function(inp)
+    if inp.UserInputType == Enum.UserInputType.Touch
+    or inp.UserInputType == Enum.UserInputType.MouseButton1 then
+        -- إذا لم يتحرك كثيراً = ضغطة
+        if ftStartInput then
+            local delta = (inp.Position - ftStartInput).Magnitude
+            if delta < 10 then
+                MainPanel.Visible = not MainPanel.Visible
             end
-        end)
+        end
+        ftDrag = false
+    end
+end)
+UserInputService.InputChanged:Connect(function(inp)
+    if ftDrag and (inp.UserInputType == Enum.UserInputType.Touch
+    or inp.UserInputType == Enum.UserInputType.MouseMovement) then
+        local delta = inp.Position - ftStartInput
+        FloatingTab.Position = UDim2.new(
+            ftStartPos.X.Scale, ftStartPos.X.Offset + delta.X,
+            ftStartPos.Y.Scale, ftStartPos.Y.Offset + delta.Y
+        )
     end
 end)
 
-FloatingTab.MouseButton1Click:Connect(function()
-    MainPanel.Visible = not MainPanel.Visible
-end)
+-- ====================== سحب النافذة ======================
+do
+    local drag, sp, sw
+    TitleBar.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            drag=true; sp=i.Position; sw=MainPanel.Position
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then drag=false end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if not drag then return end
+        if i.UserInputType ~= Enum.UserInputType.MouseMovement
+        and i.UserInputType ~= Enum.UserInputType.Touch then return end
+        local d = i.Position - sp
+        if d.Magnitude > 5 then
+            MainPanel.Position = UDim2.new(
+                sw.X.Scale, sw.X.Offset+d.X,
+                sw.Y.Scale, sw.Y.Offset+d.Y
+            )
+        end
+    end)
+end
 
 -- ====================== تفعيل عند التشغيل ======================
-if Settings.RadialField then task.spawn(UpdateRadialField) end
-if Settings.AutoParry then StartSmartAutoParry() end
+if Settings.AutoParry    then StartSmartAutoParry()              end
 if Settings.UltraAntiLag then task.delay(1, ActivateUltraAntiLag) end
-if Settings.AutoWalk and IsInMatch() then InMatch = true StartRandomWalk() end
+if Settings.AutoWalk and IsInMatch() then InMatch=true; StartRandomWalk() end
 
 StarterGui:SetCore("SendNotification", {
-    Title = "Blade Ball v7.1",
-    Text = "✅ تم إصلاح الواجهة\nالخيارات تظهر الآن",
+    Title = "Blade Ball v7.1 Fixed",
+    Text  = "✅ كل الأزرار تظهر الآن\nالكاميرا تعمل بشكل طبيعي",
     Duration = 5
 })
 
-print("✅ Blade Ball v7.1 Fixed - UI should now show all toggles")
+print("✅ Blade Ball v7.1 FIXED FINAL - All 6 toggles + Camera works")
