@@ -1,22 +1,57 @@
--- [[ AL-AMIR V12.0 - NON-STOP JUMP & RANDOM MOVE ]] --
-local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
-local RunService = game:GetService("RunService")
+-- ╔══════════════════════════════════════════════╗
+-- ║      Blade Ball  v8.7                        ║
+-- ║  Simple Button UI · Pathfinding Walk         ║
+-- ╚══════════════════════════════════════════════╝
 
--- تنظيف الواجهات القديمة
+local Players            = game:GetService("Players")
+local RunService         = game:GetService("RunService")
+local UserInputService   = game:GetService("UserInputService")
+local TweenService       = game:GetService("TweenService")
+local Lighting           = game:GetService("Lighting")
+local RS                 = game:GetService("ReplicatedStorage")
+local PathfindingService = game:GetService("PathfindingService")
+
+repeat task.wait() until Players.LocalPlayer
+local LP = Players.LocalPlayer
+
 pcall(function()
-    for _, v in pairs(LP.PlayerGui:GetChildren()) do
-        if v.Name:find("BB_") or v.Name:find("AL_AMIR") then v:Destroy() end
+    for _, g in ipairs({game:GetService("CoreGui"), LP:WaitForChild("PlayerGui")}) do
+        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v81","BB_v82",
+                             "BB_v83","BB_v84","BB_v85","BB_v86","BB_v87"}) do
+            local old = g:FindFirstChild(n)
+            if old then old:Destroy() end
+        end
     end
 end)
 
-local CFG = { Active = false }
 local Balls = workspace:WaitForChild("Balls", 10)
-local Dirs = {Vector3.new(1,0,0), Vector3.new(-1,0,0), Vector3.new(0,0,1), Vector3.new(0,0,-1)}
-local lastWalk = 0
 
--- وظيفة فحص وجود مباراة (كرة متحركة) لضمان التوقف في اللوبي
-local function IsInMatch()
+local CFG = {
+    AutoJump     = false,
+    JumpInterval = 1.0,
+    AutoWalk     = false,
+    RandomMove   = false,
+    MoveInterval = 0.4,
+    AntiLag      = false,
+}
+
+local C = {
+    BG     = Color3.fromRGB(18,  18,  26),
+    Btn    = Color3.fromRGB(28,  28,  42),
+    BtnOn  = Color3.fromRGB(34,  197, 94),
+    Accent = Color3.fromRGB(99,  102, 241),
+    Text   = Color3.fromRGB(200, 200, 220),
+    Muted  = Color3.fromRGB(75,  75,  110),
+    Yellow = Color3.fromRGB(251, 191, 36),
+    Red    = Color3.fromRGB(239, 68,  68),
+}
+
+local lastJump   = 0
+local lastRandom = 0
+local ColorCorrection   = nil
+local antiLagConnection = nil
+
+local function IsMovingBallExists()
     if not Balls then return false end
     for _, ball in ipairs(Balls:GetChildren()) do
         if ball:IsA("BasePart") and ball.AssemblyLinearVelocity.Magnitude > 10 then
@@ -26,53 +61,310 @@ local function IsInMatch()
     return false
 end
 
-RunService.Heartbeat:Connect(function()
-    if not CFG.Active then return end
-    
+-- ══ PATHFINDING ══
+local aiWalking = false
+local aiThread  = nil
+
+local function StopAIWalk()
+    aiWalking = false
+    if aiThread then pcall(function() task.cancel(aiThread) end); aiThread = nil end
+end
+
+local function GetSafeTarget(hrp)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
     local char = LP.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or not hrp then return end
+    if char then params.FilterDescendantsInstances = {char} end
+    for _ = 1, 8 do
+        local a = math.random() * math.pi * 2
+        local d = math.random(8, 18)
+        local t = hrp.Position + Vector3.new(math.cos(a)*d, 0, math.sin(a)*d)
+        local ray = workspace:Raycast(t + Vector3.new(0,5,0), Vector3.new(0,-15,0), params)
+        if ray then return Vector3.new(t.X, ray.Position.Y+3, t.Z) end
+    end
+    return nil
+end
 
-    if IsInMatch() then
-        -- 1. القفز المستمر (بدون توقف)
-        -- سيحاول القفز في كل إطار (Frame) متاح
-        if hum:GetState() ~= Enum.HumanoidStateType.Jumping and hum:GetState() ~= Enum.HumanoidStateType.Freefall then
-            hum.Jump = true
-        elseif hum:GetState() == Enum.HumanoidStateType.Freefall then
-            -- القفزة الثانية (Double Jump) أثناء السقوط
-            hum.Jump = true
+local function StartAIWalk()
+    if aiWalking then return end
+    aiWalking = true
+    aiThread = task.spawn(function()
+        while aiWalking do
+            pcall(function()
+                if not IsMovingBallExists() then task.wait(0.5); return end
+                local char = LP.Character; if not char then task.wait(0.5); return end
+                local hrp = char:FindFirstChild("HumanoidRootPart")
+                local hum = char:FindFirstChild("Humanoid")
+                if not hrp or not hum or hum.Health <= 0 then task.wait(0.5); return end
+                local target = GetSafeTarget(hrp)
+                if not target then task.wait(0.3); return end
+                local path = PathfindingService:CreatePath({AgentRadius=2,AgentHeight=5,AgentCanJump=true,WaypointSpacing=4})
+                local ok = pcall(function() path:ComputeAsync(hrp.Position, target) end)
+                if not ok or path.Status ~= Enum.PathStatus.Success then
+                    hum:MoveTo(target); task.wait(0.8); return
+                end
+                for _, wp in ipairs(path:GetWaypoints()) do
+                    if not aiWalking or not IsMovingBallExists() then break end
+                    local c = LP.Character; if not c then break end
+                    local h = c:FindFirstChild("HumanoidRootPart")
+                    local hu = c:FindFirstChild("Humanoid")
+                    if not h or not hu or hu.Health <= 0 then break end
+                    if wp.Action == Enum.PathWaypointAction.Jump then hu.Jump = true end
+                    hu:MoveTo(wp.Position); hu.MoveToFinished:Wait(2)
+                end
+            end)
+            task.wait(0.1)
+        end
+    end)
+end
+
+-- ══ ANTI LAG ══
+local function ApplyAntiLag()
+    pcall(function()
+        for _, v in ipairs(workspace:GetDescendants()) do
+            if v:IsA("ParticleEmitter") or v:IsA("Trail")
+            or v:IsA("Smoke") or v:IsA("Fire") then v.Enabled = false end
+            if v:IsA("BloomEffect") or v:IsA("BlurEffect")
+            or v:IsA("SunRaysEffect") then v.Enabled = false end
+            if v:IsA("BasePart") then v.CastShadow = false end
+        end
+    end)
+end
+
+-- ══ MAIN LOOP ══
+local Dirs = {
+    Vector3.new(1,0,0), Vector3.new(-1,0,0),
+    Vector3.new(0,0,1), Vector3.new(0,0,-1),
+    Vector3.new(1,0,1).Unit, Vector3.new(-1,0,-1).Unit,
+    Vector3.new(1,0,-1).Unit, Vector3.new(-1,0,1).Unit,
+}
+
+RunService.Heartbeat:Connect(function()
+    pcall(function()
+        local char = LP.Character; if not char then return end
+        local hrp = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        if not hrp or not hum then return end
+        local now = tick()
+        local ball = IsMovingBallExists()
+
+        if CFG.AutoJump and ball and now - lastJump >= CFG.JumpInterval then
+            lastJump = now; hum.Jump = true
+            task.delay(0.15, function()
+                pcall(function() if hum and hum.Parent then hum.Jump = true end end)
+            end)
         end
 
-        -- 2. المشي العشوائي المستمر
-        if tick() - lastWalk > 0.4 then
-            lastWalk = tick()
-            hum:MoveTo(hrp.Position + Dirs[math.random(1, #Dirs)] * 15)
+        if CFG.AutoWalk then
+            if ball and hum.Health > 0 then
+                if not aiWalking then StartAIWalk() end
+            else StopAIWalk() end
+        else StopAIWalk() end
+
+        if CFG.RandomMove and ball and now - lastRandom >= CFG.MoveInterval then
+            lastRandom = now
+            hum:MoveTo(hrp.Position + Dirs[math.random(1,#Dirs)] * 16)
         end
+    end)
+end)
+
+-- ══════════════════════════════════════════════
+-- GUI
+-- ══════════════════════════════════════════════
+local SG = Instance.new("ScreenGui")
+SG.Name = "BB_v87"; SG.ResetOnSpawn = false
+SG.DisplayOrder = 999; SG.IgnoreGuiInset = true
+local ok = pcall(function() SG.Parent = game:GetService("CoreGui") end)
+if not ok or not SG.Parent then SG.Parent = LP:WaitForChild("PlayerGui") end
+
+-- زر عائم
+local Icon = Instance.new("TextButton")
+Icon.Text = "⚔"; Icon.Font = Enum.Font.GothamBold; Icon.TextSize = 22
+Icon.TextColor3 = Color3.fromRGB(255,255,255)
+Icon.BackgroundColor3 = Color3.fromRGB(20,20,30)
+Icon.Size = UDim2.new(0,52,0,52)
+Icon.Position = UDim2.new(0,10,0.5,-26)
+Icon.BorderSizePixel = 0; Icon.Visible = false; Icon.ZIndex = 20; Icon.Parent = SG
+Instance.new("UICorner",Icon).CornerRadius = UDim.new(1,0)
+local IS = Instance.new("UIStroke"); IS.Color = C.Accent; IS.Thickness = 2; IS.Parent = Icon
+
+-- النافذة
+local Win = Instance.new("Frame")
+Win.Size = UDim2.new(0,290,0,0)
+Win.Position = UDim2.new(0,14,0.12,0)
+Win.BackgroundColor3 = C.BG; Win.BorderSizePixel = 0
+Win.AutomaticSize = Enum.AutomaticSize.Y
+Win.ZIndex = 5; Win.Parent = SG
+Instance.new("UICorner",Win).CornerRadius = UDim.new(0,14)
+local WS = Instance.new("UIStroke")
+WS.Color = Color3.fromRGB(35,35,55); WS.Thickness = 1; WS.Parent = Win
+
+local WL = Instance.new("UIListLayout")
+WL.SortOrder = Enum.SortOrder.LayoutOrder; WL.Padding = UDim.new(0,8)
+WL.HorizontalAlignment = Enum.HorizontalAlignment.Center; WL.Parent = Win
+
+local WP = Instance.new("UIPadding")
+WP.PaddingTop = UDim.new(0,10); WP.PaddingBottom = UDim.new(0,14)
+WP.PaddingLeft = UDim.new(0,10); WP.PaddingRight = UDim.new(0,10); WP.Parent = Win
+
+-- عنوان
+local TitleRow = Instance.new("Frame")
+TitleRow.Size = UDim2.new(1,0,0,28); TitleRow.BackgroundTransparency = 1
+TitleRow.LayoutOrder = 0; TitleRow.ZIndex = 6; TitleRow.Parent = Win
+
+local TitleL = Instance.new("TextLabel")
+TitleL.Text = "Blade Ball V8.7"; TitleL.Font = Enum.Font.GothamBold; TitleL.TextSize = 13
+TitleL.TextColor3 = C.Accent; TitleL.BackgroundTransparency = 1
+TitleL.Size = UDim2.new(1,-34,1,0); TitleL.TextXAlignment = Enum.TextXAlignment.Center
+TitleL.ZIndex = 7; TitleL.Parent = TitleRow
+
+local MinBtn = Instance.new("TextButton")
+MinBtn.Text = "−"; MinBtn.Font = Enum.Font.GothamBold; MinBtn.TextSize = 18
+MinBtn.TextColor3 = C.Muted; MinBtn.BackgroundColor3 = Color3.fromRGB(28,28,42)
+MinBtn.Size = UDim2.new(0,28,0,28); MinBtn.Position = UDim2.new(1,-28,0,0)
+MinBtn.BorderSizePixel = 0; MinBtn.ZIndex = 8; MinBtn.Parent = TitleRow
+Instance.new("UICorner",MinBtn).CornerRadius = UDim.new(0,8)
+
+-- FPS
+local FpsLbl = Instance.new("TextLabel")
+FpsLbl.Text = "⚡ FPS: --"; FpsLbl.Font = Enum.Font.GothamBold; FpsLbl.TextSize = 11
+FpsLbl.TextColor3 = C.Accent; FpsLbl.BackgroundTransparency = 1
+FpsLbl.Size = UDim2.new(1,0,0,18); FpsLbl.TextXAlignment = Enum.TextXAlignment.Center
+FpsLbl.LayoutOrder = 1; FpsLbl.ZIndex = 6; FpsLbl.Parent = Win
+
+-- دالة الزر
+local THRESH = 12
+local function MakeBtn(label, order, cb)
+    local state = false
+    local btn = Instance.new("TextButton")
+    btn.Text = label..": OFF"; btn.Font = Enum.Font.GothamBold; btn.TextSize = 15
+    btn.TextColor3 = C.Text; btn.BackgroundColor3 = C.Btn
+    btn.Size = UDim2.new(1,0,0,60); btn.BorderSizePixel = 0
+    btn.LayoutOrder = order; btn.ZIndex = 6; btn.Parent = Win
+    Instance.new("UICorner",btn).CornerRadius = UDim.new(0,12)
+
+    local sp = nil
+    btn.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            sp = Vector2.new(i.Position.X, i.Position.Y)
+        end
+    end)
+    btn.InputEnded:Connect(function(i)
+        if (i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch) and sp then
+            local d = (Vector2.new(i.Position.X,i.Position.Y)-sp).Magnitude
+            if d < THRESH then
+                state = not state
+                btn.Text = label..(state and ": ON" or ": OFF")
+                TweenService:Create(btn, TweenInfo.new(0.15), {
+                    BackgroundColor3 = state and C.BtnOn or C.Btn
+                }):Play()
+                btn.TextColor3 = state and Color3.fromRGB(255,255,255) or C.Text
+                if cb then cb(state) end
+            end
+            sp = nil
+        end
+    end)
+end
+
+-- الأزرار
+MakeBtn("Auto Walk",   2, function(on) CFG.AutoWalk   = on end)
+MakeBtn("Double Jump", 3, function(on) CFG.AutoJump   = on end)
+MakeBtn("Random Move", 4, function(on) CFG.RandomMove = on end)
+MakeBtn("Anti-Lag",    5, function(on)
+    CFG.AntiLag = on
+    if on then
+        if antiLagConnection then antiLagConnection:Disconnect() end
+        if ColorCorrection then ColorCorrection:Destroy() end
+        ColorCorrection = Instance.new("ColorCorrectionEffect")
+        ColorCorrection.Saturation = -1; ColorCorrection.Parent = Lighting
+        Lighting.GlobalShadows = false; Lighting.FogEnd = 9e9
+        Lighting.FogStart = 9e9; Lighting.Brightness = 2
+        ApplyAntiLag()
+        antiLagConnection = RunService.Stepped:Connect(function()
+            if not CFG.AntiLag then return end
+            task.wait(5); ApplyAntiLag()
+        end)
     else
-        -- التوقف تماماً في اللوبي (عندما لا توجد كرة متحركة)
-        hum:Move(Vector3.new(0,0,0), false)
+        if antiLagConnection then antiLagConnection:Disconnect() end
+        antiLagConnection = nil
+        if ColorCorrection then ColorCorrection:Destroy() end
+        ColorCorrection = nil
+        Lighting.GlobalShadows = true; Lighting.FogEnd = 100000
+        Lighting.FogStart = 0; Lighting.Brightness = 1
     end
 end)
 
--- واجهة المستخدم (Neon Green)
-local SG = Instance.new("ScreenGui", LP.PlayerGui)
-SG.Name = "AL_AMIR_V12"
-
-local Btn = Instance.new("TextButton", SG)
-Btn.Size = UDim2.new(0, 110, 0, 50)
-Btn.Position = UDim2.new(0, 15, 0.5, 0)
-Btn.Text = "START V12"
-Btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-Btn.TextColor3 = Color3.fromRGB(0, 255, 100)
-Btn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", Btn)
-local Str = Instance.new("UIStroke", Btn)
-Str.Color = Color3.fromRGB(0, 255, 100)
-Str.Thickness = 2
-
-Btn.MouseButton1Click:Connect(function()
-    CFG.Active = not CFG.Active
-    Btn.Text = CFG.Active and "ACTIVE ✅" or "START V12"
-    Btn.BackgroundColor3 = CFG.Active and Color3.fromRGB(0, 100, 50) or Color3.fromRGB(20, 20, 20)
+-- FPS Counter
+local fT, fS = 0, {}
+RunService.Heartbeat:Connect(function(dt)
+    table.insert(fS, 1/math.max(dt,0.001))
+    if #fS > 30 then table.remove(fS,1) end
+    fT += dt
+    if fT >= 0.5 then
+        fT = 0; local s = 0
+        for _, v in ipairs(fS) do s += v end
+        local avg = math.floor(s/#fS)
+        FpsLbl.Text = "⚡ FPS: "..avg
+        FpsLbl.TextColor3 = avg>=50 and C.BtnOn or avg>=25 and C.Yellow or C.Red
+    end
 end)
+
+-- تصغير / استعادة
+MinBtn.MouseButton1Click:Connect(function()
+    Win.Visible = false; Icon.Visible = true
+end)
+Icon.MouseButton1Click:Connect(function()
+    Icon.Visible = false; Win.Visible = true
+end)
+
+-- سحب النافذة
+do
+    local drag, sp, sw
+    TitleRow.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            drag=true; sp=i.Position; sw=Win.Position
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then drag=false end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if not drag then return end
+        if i.UserInputType ~= Enum.UserInputType.MouseMovement
+        and i.UserInputType ~= Enum.UserInputType.Touch then return end
+        local d = i.Position - sp
+        if d.Magnitude > 5 then
+            Win.Position = UDim2.new(sw.X.Scale,sw.X.Offset+d.X,sw.Y.Scale,sw.Y.Offset+d.Y)
+        end
+    end)
+end
+
+-- سحب الأيقونة
+do
+    local drag, sp, si
+    Icon.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then
+            drag=true; sp=i.Position; si=Icon.Position
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1
+        or i.UserInputType == Enum.UserInputType.Touch then drag=false end
+    end)
+    UserInputService.InputChanged:Connect(function(i)
+        if not drag then return end
+        if i.UserInputType ~= Enum.UserInputType.MouseMovement
+        and i.UserInputType ~= Enum.UserInputType.Touch then return end
+        local d = i.Position - sp
+        if d.Magnitude > 5 then
+            Icon.Position = UDim2.new(si.X.Scale,si.X.Offset+d.X,si.Y.Scale,si.Y.Offset+d.Y)
+        end
+    end)
+end
+
+print("[BB v8.7] ✅ تم التحميل!")
