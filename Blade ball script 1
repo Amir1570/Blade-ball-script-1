@@ -1,119 +1,122 @@
--- [[ OMEGA-Z FORCE-ACTION ENGINE ]] --
+-- [[ Blade Ball Dashboard v8.6 - AL-AMIR EDITION ]] --
+-- الميزة: يتحرك فقط في المباراة + قفز مزدوج حقيقي للهاتف
+
 local Players = game:GetService("Players")
-local Player = Players.LocalPlayer
-local PlayerGui = Player:WaitForChild("PlayerGui")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local LP = Players.LocalPlayer
 
--- تنظيف الواجهات القديمة
-for _, old in pairs(PlayerGui:GetChildren()) do
-    if old.Name == "BladeBall_Omega" then old:Destroy() end
-end
-
--- [1] واجهة المستخدم (UI System)
-local ScreenGui = Instance.new("ScreenGui", PlayerGui)
-ScreenGui.Name = "BladeBall_Omega"
-ScreenGui.ResetOnSpawn = false
-
-local MainFrame = Instance.new("Frame", ScreenGui)
-MainFrame.Size = UDim2.new(0, 210, 0, 300)
-MainFrame.Position = UDim2.new(0.5, -105, 0.5, -150)
-MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-MainFrame.BorderSizePixel = 2
-MainFrame.BorderColor3 = Color3.fromRGB(0, 255, 0)
-MainFrame.Visible = false
-MainFrame.Active = true
-MainFrame.Draggable = true
-
-local FloatingBtn = Instance.new("TextButton", ScreenGui)
-FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
-FloatingBtn.Position = UDim2.new(0.1, 0, 0.5, 0)
-FloatingBtn.Text = "B"
-FloatingBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-local Corner = Instance.new("UICorner", FloatingBtn)
-Corner.CornerRadius = UDim.new(1, 0)
-
-FloatingBtn.MouseButton1Click:Connect(function()
-    MainFrame.Visible = not MainFrame.Visible
+-- [1] تنظيف النسخ القديمة
+pcall(function()
+    for _, g in ipairs({game:GetService("CoreGui"), LP.PlayerGui}) do
+        local old = g:FindFirstChild("BB_AL_AMIR_V86")
+        if old then old:Destroy() end
+    end
 end)
 
--- [2] المتغيرات التقنية
-local Config = { Walk = false, Jump = true }
+local CFG = {
+    AutoJump = false,
+    AutoWalk = false,
+    AntiLag = false,
+}
+
 local JumpCount = 0
 
-local function CreateBtn(txt, y, callback)
-    local b = Instance.new("TextButton", MainFrame)
-    b.Size = UDim2.new(0.9, 0, 0, 45)
-    b.Position = UDim2.new(0.05, 0, 0, y)
-    b.Text = txt
-    b.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-    b.TextColor3 = Color3.new(1, 1, 1)
-    b.MouseButton1Click:Connect(function() callback(b) end)
-    return b
+-- [2] دالة التحقق من المباراة (تطوير ذكي)
+-- تتحقق من وجود الكرة في مكان قريب أو وجود مجلد الأرين
+local function IsInMatch()
+    local Ball = workspace:FindFirstChild("Ball", true) or workspace:FindFirstChild("BaseBall", true)
+    if Ball then 
+        -- إذا كانت الكرة موجودة وتحركت قليلاً أو قريبة من الحلبة
+        return true 
+    end
+    -- فحص احتياطي: وجود واجهة القتال (السيوف)
+    if LP.PlayerGui:FindFirstChild("Hotbar") and LP.PlayerGui.Hotbar.Visible then
+        return true
+    end
+    return false
 end
 
--- زر المشي: تم إزالة شرط "Ball" ليعمل فوراً بناءً على طلبك
-CreateBtn("Auto Walk: OFF", 20, function(self)
-    Config.Walk = not Config.Walk
-    self.Text = "Auto Walk: " .. (Config.Walk and "ON" or "OFF")
-    self.BackgroundColor3 = Config.Walk and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(35, 35, 35)
-end)
+-- [3] الواجهة (UI)
+local SG = Instance.new("ScreenGui", game:GetService("CoreGui"))
+SG.Name = "BB_AL_AMIR_V86"
 
--- زر القفز المزدوج (Double Jump)
-CreateBtn("Double Jump: ON", 80, function(self)
-    Config.Jump = not Config.Jump
-    self.Text = "Double Jump: " .. (Config.Jump and "ON" or "OFF")
-    self.BackgroundColor3 = Config.Jump and Color3.fromRGB(0, 150, 0) or Color3.fromRGB(35, 35, 35)
-end)
+local Main = Instance.new("Frame", SG)
+Main.Size = UDim2.new(0, 200, 0, 250)
+Main.Position = UDim2.new(0.5, -100, 0.5, -125)
+Main.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+Main.Active = true
+Main.Draggable = true
+Instance.new("UICorner", Main)
 
--- زر تقليل اللاغ (Anti-Lag)
-CreateBtn("Super Anti-Lag", 140, function()
-    pcall(function()
-        settings().Rendering.QualityLevel = 1
-        for _, v in pairs(game:GetDescendants()) do
+local Title = Instance.new("TextLabel", Main)
+Title.Text = "Blade Ball V8.6"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.TextColor3 = Color3.fromRGB(99, 102, 241)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.GothamBold
+
+local function CreateToggle(txt, y, callback)
+    local btn = Instance.new("TextButton", Main)
+    btn.Size = UDim2.new(0.9, 0, 0, 40)
+    btn.Position = UDim2.new(0.05, 0, 0, y)
+    btn.Text = txt .. ": OFF"
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    btn.TextColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", btn)
+
+    local state = false
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        btn.Text = txt .. ": " .. (state and "ON" or "OFF")
+        btn.BackgroundColor3 = state and Color3.fromRGB(34, 197, 94) or Color3.fromRGB(30, 30, 40)
+        callback(state)
+    end)
+end
+
+CreateToggle("Auto Walk", 50, function(on) CFG.AutoWalk = on end)
+CreateToggle("Double Jump", 100, function(on) CFG.AutoJump = on end)
+CreateToggle("Anti-Lag", 150, function(on)
+    if on then
+        for _, v in pairs(workspace:GetDescendants()) do
             if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
         end
-    end)
+    end
 end)
 
-CreateBtn("Close Script", 220, function() ScreenGui:Destroy() end)
-
--- [3] المحرك التنفيذي (Core Engine)
+-- [4] المحرك التشغيلي (Logic)
 RunService.Heartbeat:Connect(function()
-    local Char = Player.Character
-    local Hum = Char and Char:FindFirstChild("Humanoid")
-    local Root = Char and Char:FindFirstChild("HumanoidRootPart")
+    local char = LP.Character
+    local hum = char and char:FindFirstChild("Humanoid")
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
     
-    if not Hum or Hum.Health == 0 then return end
-    
-    -- المشي العشوائي: يعمل الآن بمجرد تفعيل الزر (بدون شروط إضافية)
-    if Config.Walk then
-        if Hum.MoveDirection.Magnitude == 0 then
-            local Target = Root.Position + Vector3.new(math.random(-20, 20), 0, math.random(-20, 20))
-            Hum:MoveTo(Target)
+    if not hum or not hrp then return end
+
+    -- الشرط الذهبي: لا يتحرك إلا إذا بدأت المباراة فعلياً
+    if CFG.AutoWalk and IsInMatch() then
+        if hum.MoveDirection.Magnitude == 0 then
+            hum:MoveTo(hrp.Position + Vector3.new(math.random(-15, 15), 0, math.random(-15, 15)))
         end
     end
-    
-    -- ريست القفز (Mobile Safe)
-    if Hum.FloorMaterial ~= Enum.Material.Air then
+
+    if hum.FloorMaterial ~= Enum.Material.Air then
         JumpCount = 0
     end
 end)
 
--- [4] منطق القفز المزدوج (القسري)
-UserInputService.JumpRequest:Connect(function()
-    if Config.Jump then
-        local Char = Player.Character
-        local Hum = Char and Char:FindFirstChild("Humanoid")
-        
-        if Hum and JumpCount < 2 then
-            JumpCount = JumpCount + 1
-            if JumpCount == 2 then
-                -- قفزة ثانية قوية لضمان العمل على الهاتف
-                Char.PrimaryPart.Velocity = Vector3.new(Char.PrimaryPart.Velocity.X, 65, Char.PrimaryPart.Velocity.Z)
+-- القفز المزدوج (يعمل فقط في المباراة)
+UserInputService.InputBegan:Connect(function(input, processed)
+    if CFG.AutoJump and not processed and IsInMatch() then
+        if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+            local char = LP.Character
+            if char and JumpCount < 2 then
+                JumpCount = JumpCount + 1
+                if JumpCount == 2 then
+                    char.PrimaryPart.Velocity = Vector3.new(char.PrimaryPart.Velocity.X, 60, char.PrimaryPart.Velocity.Z)
+                else
+                    char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+                end
             end
         end
     end
 end)
-
-print("Blade Ball Force Engine Loaded.")
