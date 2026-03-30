@@ -1,53 +1,52 @@
--- [[ AL-AMIR ULTIMATE V12.0 - FINAL FIX ]] --
+-- [[ AL-AMIR ULTIMATE V13 - REBORN ]] --
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
 
--- [1] تنظيف شامل لكل شيء قديم لمنع التداخل (الموجود في صورك)
-pcall(function()
-    for _, v in pairs(LP.PlayerGui:GetChildren()) do
-        if v:IsA("ScreenGui") and (v.Name:find("BB") or v.Name:find("Kernel") or v.Name:find("Alive")) then
-            v:Destroy()
-        end
+-- [1] تنظيف شامل وقوي لأي أثر قديم (لحل مشكلة التداخل في صورك)
+for _, v in pairs(LP.PlayerGui:GetChildren()) do
+    if v:IsA("ScreenGui") and (v.Name:find("BB") or v.Name:find("Kernel") or v.Name:find("Final")) then
+        v:Destroy()
     end
-end)
+end
 
 local CFG = { Walk = false, Jump = false, AntiLag = false }
 local JumpCount = 0
 
--- [2] دالة التحقق من المكان (هل أنا في المباراة؟)
-local function IsInArena()
-    local char = LP.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return false end
-    
-    -- إذا كان ارتفاع اللاعب (Y) أقل من مستوى معين أو في منطقة اللوبي، سيتوقف
-    -- في Blade Ball، ساحة القتال عادة تكون في إحداثيات معينة، أو بعيدة عن منطقة الرسباون
-    -- سنستخدم التحقق من وجود "الكرة" كدليل قاطع داخل المباراة
-    if workspace:FindFirstChild("Ball", true) or workspace:FindFirstChild("BaseBall", true) then
-        return true
+-- [2] دالة ذكية جداً للتحقق من المباراة
+-- تعتمد على وجود "واجهة الصد" (Block Button) التي لا تظهر إلا في المباراة
+local function IsInMatch()
+    local playerGui = LP:FindFirstChild("PlayerGui")
+    if playerGui then
+        -- البحث عن أي واجهة تحتوي على كلمة "Block" أو "Ability" وهي موجودة فقط في الملعب
+        local screenUI = playerGui:FindFirstChild("Hotbar") or playerGui:FindFirstChild("AbilityGui")
+        if screenUI and screenUI.Enabled then
+            return true
+        end
     end
     return false
 end
 
--- [3] الواجهة (الزر العائم والقائمة)
+-- [3] إنشاء الواجهة (GUI)
 local SG = Instance.new("ScreenGui", LP.PlayerGui)
-SG.Name = "BB_FINAL_V12"
+SG.Name = "BB_FINAL_V13"
 SG.ResetOnSpawn = false
 
+-- الزر العائم (B)
 local FloatingBtn = Instance.new("TextButton", SG)
 FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
-FloatingBtn.Position = UDim2.new(0, 10, 0.5, 0)
+FloatingBtn.Position = UDim2.new(0.1, 0, 0.5, 0)
+FloatingBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
 FloatingBtn.Text = "B"
-FloatingBtn.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-FloatingBtn.TextColor3 = Color3.new(1,1,1)
+FloatingBtn.TextColor3 = Color3.new(0,0,0)
+FloatingBtn.Font = Enum.Font.GothamBold
 Instance.new("UICorner", FloatingBtn).CornerRadius = UDim.new(1, 0)
 
 local Main = Instance.new("Frame", SG)
-Main.Size = UDim2.new(0, 210, 0, 320)
-Main.Position = UDim2.new(0.5, -105, 0.5, -160)
-Main.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+Main.Size = UDim2.new(0, 220, 0, 320)
+Main.Position = UDim2.new(0.5, -110, 0.5, -160)
+Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 Main.Visible = false
 Main.Active = true
 Main.Draggable = true
@@ -59,7 +58,7 @@ local function CreateBtn(txt, y, callback)
     local btn = Instance.new("TextButton", Main)
     btn.Size = UDim2.new(0.9, 0, 0, 45)
     btn.Position = UDim2.new(0.05, 0, 0, y)
-    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
     btn.Text = txt .. ": OFF"
     btn.TextColor3 = Color3.new(1,1,1)
     btn.Font = Enum.Font.GothamBold
@@ -69,12 +68,12 @@ local function CreateBtn(txt, y, callback)
     btn.MouseButton1Click:Connect(function()
         state = not state
         btn.Text = txt .. ": " .. (state and "ON" or "OFF")
-        btn.BackgroundColor3 = state and Color3.fromRGB(0, 200, 100) or Color3.fromRGB(30, 30, 40)
+        btn.BackgroundColor3 = state and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(40, 40, 50)
         callback(state)
     end)
 end
 
--- [4] تفعيل الأزرار
+-- الأزرار
 CreateBtn("Smart Walk", 20, function(on) CFG.Walk = on end)
 CreateBtn("Double Jump", 75, function(on) CFG.Jump = on end)
 CreateBtn("Anti-Lag", 130, function(on) 
@@ -90,27 +89,25 @@ Close.Size = UDim2.new(0.9, 0, 0, 40)
 Close.Position = UDim2.new(0.05, 0, 0, 200)
 Close.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
 Close.Text = "CLOSE SCRIPT"
+Close.TextColor3 = Color3.new(1,1,1)
 Close.MouseButton1Click:Connect(function() SG:Destroy() end)
 
--- [5] محرك الحركة (المشي فقط في المباراة)
-local MoveDir = Vector3.new(1, 0, 1)
+-- [4] محرك الحركة (المشي فقط في المباراة)
 task.spawn(function()
-    while task.wait(0.5) do
-        MoveDir = Vector3.new(math.random(-1, 1), 0, math.random(-1, 1))
-    end
-end)
-
-RunService.RenderStepped:Connect(function()
-    if CFG.Walk and IsInArena() then
-        local char = LP.Character
-        local hum = char and char:FindFirstChild("Humanoid")
-        if hum then
-            hum:Move(MoveDir, true)
+    while task.wait() do
+        if CFG.Walk and IsInMatch() then
+            local char = LP.Character
+            local hum = char and char:FindFirstChild("Humanoid")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hum and hrp then
+                hum:Move(Vector3.new(math.random(-1, 1), 0, math.random(-1, 1)), true)
+                task.wait(0.5)
+            end
         end
     end
 end)
 
--- [6] محرك القفز (تصحيح نهائي)
+-- [5] محرك القفز المزدوج (قوة دفع خام)
 UserInputService.JumpRequest:Connect(function()
     if CFG.Jump then
         local char = LP.Character
@@ -121,8 +118,7 @@ UserInputService.JumpRequest:Connect(function()
             if hum:GetState() == Enum.HumanoidStateType.Jumping or hum:GetState() == Enum.HumanoidStateType.Freefall then
                 if JumpCount < 1 then
                     JumpCount = 1
-                    -- دفع فيزيائي للأعلى يتخطى حماية اللعبة
-                    hrp.Velocity = Vector3.new(hrp.Velocity.X, 60, hrp.Velocity.Z)
+                    hrp.Velocity = Vector3.new(hrp.Velocity.X, 65, hrp.Velocity.Z)
                 end
             end
         end
@@ -132,7 +128,7 @@ end)
 RunService.Heartbeat:Connect(function()
     local char = LP.Character
     local hum = char and char:FindFirstChild("Humanoid")
-    if hum and (hum.FloorMaterial ~= Enum.Material.Air) then
+    if hum and hum.FloorMaterial ~= Enum.Material.Air then
         JumpCount = 0
     end
 end)
