@@ -236,12 +236,14 @@ end
 -- ====================== الواجهة الرئيسية (الصندوق الأسود) ======================
 local MainGui = Instance.new("ScreenGui")
 MainGui.ResetOnSpawn = false
+MainGui.DisplayOrder = 10
 MainGui.Parent = LocalPlayer.PlayerGui
 
 local MainPanel = Instance.new("Frame")
-MainPanel.Size = UDim2.new(0, 300, 0, 470)
+MainPanel.Size = UDim2.new(0, 300, 0, 490)
 MainPanel.Position = UDim2.new(0, 15, 0, 100)
 MainPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+MainPanel.Active = false  -- لا يمنع حركة الكاميرا
 MainPanel.Parent = MainGui
 
 Instance.new("UICorner", MainPanel).CornerRadius = UDim.new(0, 14)
