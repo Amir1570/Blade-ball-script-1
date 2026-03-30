@@ -1,134 +1,197 @@
--- [[ AL-AMIR ULTIMATE V13 - REBORN ]] --
+-- [[ AL-AMIR DASHBOARD V8.5 - MODERN UI RE-DESIGN ]] --
 local Players = game:GetService("Players")
-local LP = Players.LocalPlayer
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local RS = game:GetService("ReplicatedStorage")
 
--- [1] تنظيف شامل وقوي لأي أثر قديم (لحل مشكلة التداخل في صورك)
-for _, v in pairs(LP.PlayerGui:GetChildren()) do
-    if v:IsA("ScreenGui") and (v.Name:find("BB") or v.Name:find("Kernel") or v.Name:find("Final")) then
-        v:Destroy()
-    end
-end
+repeat task.wait() until Players.LocalPlayer
+local LP = Players.LocalPlayer
 
-local CFG = { Walk = false, Jump = false, AntiLag = false }
-local JumpCount = 0
-
--- [2] دالة ذكية جداً للتحقق من المباراة
--- تعتمد على وجود "واجهة الصد" (Block Button) التي لا تظهر إلا في المباراة
-local function IsInMatch()
-    local playerGui = LP:FindFirstChild("PlayerGui")
-    if playerGui then
-        -- البحث عن أي واجهة تحتوي على كلمة "Block" أو "Ability" وهي موجودة فقط في الملعب
-        local screenUI = playerGui:FindFirstChild("Hotbar") or playerGui:FindFirstChild("AbilityGui")
-        if screenUI and screenUI.Enabled then
-            return true
+-- [1] تنظيف النسخ القديمة
+pcall(function()
+    for _, g in ipairs({game:GetService("CoreGui"), LP:WaitForChild("PlayerGui")}) do
+        for _, n in ipairs({"BB_v4","BB_v5","BB_v6","BB_v7","BB_v8","BB_v12","BB_FINAL_V13"}) do
+            local old = g:FindFirstChild(n)
+            if old then old:Destroy() end
         end
+    end
+end)
+
+-- [2] منطق السكربت (Logic) - لا تغيير هنا لضمان الكفاءة
+local Balls = workspace:WaitForChild("Balls", 10)
+local CFG = { AutoJump = false, JumpInterval = 1.0, AutoWalk = false, RandomMove = false, MoveInterval = 0.4, AntiLag = false }
+local lastJump, lastWalk, lastRandom = 0, 0, 0
+local Dirs = { Vector3.new(1, 0, 0), Vector3.new(-1, 0, 0), Vector3.new(0, 0, 1), Vector3.new(0, 0, -1) }
+
+local function IsMovingBallExists()
+    if not Balls then return false end
+    for _, ball in ipairs(Balls:GetChildren()) do
+        if ball:IsA("BasePart") and ball.AssemblyLinearVelocity.Magnitude > 10 then return true end
     end
     return false
 end
 
--- [3] إنشاء الواجهة (GUI)
-local SG = Instance.new("ScreenGui", LP.PlayerGui)
-SG.Name = "BB_FINAL_V13"
-SG.ResetOnSpawn = false
-
--- الزر العائم (B)
-local FloatingBtn = Instance.new("TextButton", SG)
-FloatingBtn.Size = UDim2.new(0, 50, 0, 50)
-FloatingBtn.Position = UDim2.new(0.1, 0, 0.5, 0)
-FloatingBtn.BackgroundColor3 = Color3.fromRGB(0, 255, 100)
-FloatingBtn.Text = "B"
-FloatingBtn.TextColor3 = Color3.new(0,0,0)
-FloatingBtn.Font = Enum.Font.GothamBold
-Instance.new("UICorner", FloatingBtn).CornerRadius = UDim.new(1, 0)
-
-local Main = Instance.new("Frame", SG)
-Main.Size = UDim2.new(0, 220, 0, 320)
-Main.Position = UDim2.new(0.5, -110, 0.5, -160)
-Main.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-Main.Visible = false
-Main.Active = true
-Main.Draggable = true
-Instance.new("UICorner", Main)
-
-FloatingBtn.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
-
-local function CreateBtn(txt, y, callback)
-    local btn = Instance.new("TextButton", Main)
-    btn.Size = UDim2.new(0.9, 0, 0, 45)
-    btn.Position = UDim2.new(0.05, 0, 0, y)
-    btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-    btn.Text = txt .. ": OFF"
-    btn.TextColor3 = Color3.new(1,1,1)
-    btn.Font = Enum.Font.GothamBold
-    Instance.new("UICorner", btn)
-
-    local state = false
-    btn.MouseButton1Click:Connect(function()
-        state = not state
-        btn.Text = txt .. ": " .. (state and "ON" or "OFF")
-        btn.BackgroundColor3 = state and Color3.fromRGB(0, 180, 80) or Color3.fromRGB(40, 40, 50)
-        callback(state)
-    end)
-end
-
--- الأزرار
-CreateBtn("Smart Walk", 20, function(on) CFG.Walk = on end)
-CreateBtn("Double Jump", 75, function(on) CFG.Jump = on end)
-CreateBtn("Anti-Lag", 130, function(on) 
-    if on then
-        for _, v in pairs(workspace:GetDescendants()) do
-            if v:IsA("ParticleEmitter") or v:IsA("Trail") then v.Enabled = false end
-        end
-    end
-end)
-
-local Close = Instance.new("TextButton", Main)
-Close.Size = UDim2.new(0.9, 0, 0, 40)
-Close.Position = UDim2.new(0.05, 0, 0, 200)
-Close.BackgroundColor3 = Color3.fromRGB(150, 0, 0)
-Close.Text = "CLOSE SCRIPT"
-Close.TextColor3 = Color3.new(1,1,1)
-Close.MouseButton1Click:Connect(function() SG:Destroy() end)
-
--- [4] محرك الحركة (المشي فقط في المباراة)
-task.spawn(function()
-    while task.wait() do
-        if CFG.Walk and IsInMatch() then
-            local char = LP.Character
-            local hum = char and char:FindFirstChild("Humanoid")
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            if hum and hrp then
-                hum:Move(Vector3.new(math.random(-1, 1), 0, math.random(-1, 1)), true)
-                task.wait(0.5)
-            end
-        end
-    end
-end)
-
--- [5] محرك القفز المزدوج (قوة دفع خام)
-UserInputService.JumpRequest:Connect(function()
-    if CFG.Jump then
+RunService.Heartbeat:Connect(function()
+    pcall(function()
         local char = LP.Character
         local hum = char and char:FindFirstChild("Humanoid")
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if not hum or not hrp then return end
         
-        if hum and hrp then
-            if hum:GetState() == Enum.HumanoidStateType.Jumping or hum:GetState() == Enum.HumanoidStateType.Freefall then
-                if JumpCount < 1 then
-                    JumpCount = 1
-                    hrp.Velocity = Vector3.new(hrp.Velocity.X, 65, hrp.Velocity.Z)
-                end
+        local now = tick()
+        if IsMovingBallExists() then
+            if CFG.AutoJump and now - lastJump >= CFG.JumpInterval then
+                lastJump = now
+                hum.Jump = true
+                task.delay(0.15, function() hum.Jump = true end)
+            end
+            if CFG.AutoWalk and now - lastWalk >= 0.6 then
+                lastWalk = now
+                hum:MoveTo(hrp.Position + Dirs[math.random(1, #Dirs)] * 22)
             end
         end
+    end)
+end)
+
+-- [3] تصميم الواجهة الجديدة (Modern UI)
+local C = {
+    BG = Color3.fromRGB(15, 15, 20),
+    Accent = Color3.fromRGB(0, 255, 162), -- نيون أخضر/أزرق
+    Card = Color3.fromRGB(25, 25, 35),
+    Text = Color3.fromRGB(255, 255, 255),
+    Muted = Color3.fromRGB(150, 150, 160)
+}
+
+local SG = Instance.new("ScreenGui", LP.PlayerGui)
+SG.Name = "BB_AL_AMIR_V85"
+SG.ResetOnSpawn = false
+
+-- الزر العائم (Floating Icon)
+local Icon = Instance.new("TextButton", SG)
+Icon.Size = UDim2.new(0, 55, 0, 55)
+Icon.Position = UDim2.new(0, 15, 0.5, -27)
+Icon.BackgroundColor3 = C.BG
+Icon.Text = "A" -- اختصار AL-AMIR
+Icon.TextColor3 = C.Accent
+Icon.Font = Enum.Font.GothamBold
+Icon.TextSize = 24
+Instance.new("UICorner", Icon).CornerRadius = UDim.new(1, 0)
+local Stroke = Instance.new("UIStroke", Icon)
+Stroke.Color = C.Accent
+Stroke.Thickness = 2
+
+-- النافذة الرئيسية
+local Main = Instance.new("Frame", SG)
+Main.Size = UDim2.new(0, 240, 0, 340)
+Main.Position = UDim2.new(0.5, -120, 0.5, -170)
+Main.BackgroundColor3 = C.BG
+Main.Visible = false
+Main.ClipsDescendants = true
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0, 15)
+
+-- سحب النافذة (Draggable)
+local drag, sp, sw
+Main.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = true sp = i.Position sw = Main.Position end end)
+UserInputService.InputChanged:Connect(function(i) if drag and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then local d = i.Position - sp Main.Position = UDim2.new(sw.X.Scale, sw.X.Offset + d.X, sw.Y.Scale, sw.Y.Offset + d.Y) end end)
+UserInputService.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then drag = false end end)
+
+-- Header
+local Title = Instance.new("TextLabel", Main)
+Title.Size = UDim2.new(1, 0, 0, 50)
+Title.Text = "AL-AMIR DASHBOARD"
+Title.TextColor3 = C.Text
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.BackgroundTransparency = 1
+
+-- Containers for Toggles
+local Container = Instance.new("ScrollingFrame", Main)
+Container.Size = UDim2.new(1, -20, 1, -110)
+Container.Position = UDim2.new(0, 10, 0, 60)
+Container.BackgroundTransparency = 1
+Container.ScrollBarThickness = 0
+local Layout = Instance.new("UIListLayout", Container)
+Layout.Padding = UDim.new(0, 10)
+
+-- Function to create Modern Toggles
+local function CreateToggle(name, desc, default, callback)
+    local frame = Instance.new("Frame", Container)
+    frame.Size = UDim2.new(1, 0, 0, 55)
+    frame.BackgroundColor3 = C.Card
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
+
+    local namelbl = Instance.new("TextLabel", frame)
+    namelbl.Size = UDim2.new(1, -60, 0, 30)
+    namelbl.Position = UDim2.new(0, 12, 0, 5)
+    namelbl.Text = name
+    namelbl.TextColor3 = C.Text
+    namelbl.Font = Enum.Font.GothamBold
+    namelbl.TextSize = 12
+    namelbl.TextXAlignment = Enum.TextXAlignment.Left
+    namelbl.BackgroundTransparency = 1
+
+    local desclbl = Instance.new("TextLabel", frame)
+    desclbl.Size = UDim2.new(1, -60, 0, 20)
+    desclbl.Position = UDim2.new(0, 12, 0, 28)
+    desclbl.Text = desc
+    desclbl.TextColor3 = C.Muted
+    desclbl.Font = Enum.Font.Gotham
+    desclbl.TextSize = 9
+    desclbl.TextXAlignment = Enum.TextXAlignment.Left
+    desclbl.BackgroundTransparency = 1
+
+    local btn = Instance.new("TextButton", frame)
+    btn.Size = UDim2.new(0, 40, 0, 22)
+    btn.Position = UDim2.new(1, -52, 0.5, -11)
+    btn.BackgroundColor3 = default and C.Accent or Color3.fromRGB(50, 50, 60)
+    btn.Text = ""
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(1, 0)
+
+    local circle = Instance.new("Frame", btn)
+    circle.Size = UDim2.new(0, 16, 0, 16)
+    circle.Position = default and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)
+    circle.BackgroundColor3 = Color3.new(1,1,1)
+    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+    local state = default
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        callback(state)
+        TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = state and C.Accent or Color3.fromRGB(50, 50, 60)}):Play()
+        TweenService:Create(circle, TweenInfo.new(0.2), {Position = state and UDim2.new(1, -19, 0.5, -8) or UDim2.new(0, 3, 0.5, -8)}):Play()
+    end)
+end
+
+-- الأزرار الفعلية
+CreateToggle("Auto Jump", "قفز قسري عند اقتراب الكرة", CFG.AutoJump, function(v) CFG.AutoJump = v end)
+CreateToggle("Smart Walk", "يتحرك فقط داخل الحلبة", CFG.AutoWalk, function(v) CFG.AutoWalk = v end)
+CreateToggle("Anti-Lag", "تحسين الأداء وإزالة اللاغ", false, function(v) 
+    if v then 
+        for _, x in pairs(workspace:GetDescendants()) do 
+            if x:IsA("ParticleEmitter") or x:IsA("Trail") then x.Enabled = false end 
+        end 
     end
 end)
 
-RunService.Heartbeat:Connect(function()
-    local char = LP.Character
-    local hum = char and char:FindFirstChild("Humanoid")
-    if hum and hum.FloorMaterial ~= Enum.Material.Air then
-        JumpCount = 0
+-- زر الإغلاق (Close)
+local CloseBtn = Instance.new("TextButton", Main)
+CloseBtn.Size = UDim2.new(1, -20, 0, 40)
+CloseBtn.Position = UDim2.new(0, 10, 1, -50)
+CloseBtn.BackgroundColor3 = Color3.fromRGB(40, 20, 20)
+CloseBtn.Text = "إيقاف السكربت"
+CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+CloseBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0, 10)
+
+-- وظائف فتح وإغلاق الواجهة
+Icon.MouseButton1Click:Connect(function()
+    Main.Visible = not Main.Visible
+    if Main.Visible then
+        Main.Size = UDim2.new(0, 240, 0, 0)
+        TweenService:Create(Main, TweenInfo.new(0.3, Enum.EasingStyle.Quart), {Size = UDim2.new(0, 240, 0, 340)}):Play()
     end
 end)
+
+CloseBtn.MouseButton1Click:Connect(function() SG:Destroy() end)
