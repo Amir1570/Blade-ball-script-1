@@ -1,56 +1,79 @@
--- Super Anti Lag مخصص Blade Ball 2026
--- يقلل اللاج + يرفع FPS + ينضف الماب من الـ Effects
-
-print("✅ Super Anti Lag Blade Ball Activated!")  -- هيظهر في console
+-- Smooth Black Anti Lag + Auto Cleanup for Blade Ball
+-- تنظيف سلس + حذف المؤثرات الثقيلة + أجزاء الحلبة
 
 local Workspace = game:GetService("Workspace")
 local Lighting = game:GetService("Lighting")
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
--- 1. إعدادات الـ Lighting (أقوى boost)
+print("🖤 Smooth Black Anti Lag جاري التفعيل...")
+
+-- إعدادات الإضاءة للسلاسة
 Lighting.GlobalShadows = false
-Lighting.FogEnd = 100000
-Lighting.Brightness = 1
+Lighting.ShadowSoftness = 0
+Lighting.Brightness = 2.5
 Lighting.ClockTime = 14
-Lighting.EnvironmentDiffuseScale = 0.2
-Lighting.EnvironmentSpecularScale = 0.2
-Lighting.Ambient = Color3.fromRGB(100, 100, 100)
+Lighting.FogEnd = 999999
+Lighting.FogStart = 999999
+Lighting.EnvironmentDiffuseScale = 0
+Lighting.EnvironmentSpecularScale = 0
 
--- 2. إزالة كل الـ Particles والـ Effects اللي بتسبب لاج في Blade Ball
-local function CleanMap()
-    for _, obj in pairs(Workspace:GetDescendants()) do
-        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or 
-           obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
-            obj.Enabled = false
-        end
-        if obj:IsA("MeshPart") or obj:IsA("Part") then
-            if obj:FindFirstChild("Trail") then obj.Trail.Enabled = false end
-            if obj:FindFirstChild("ParticleEmitter") then obj.ParticleEmitter.Enabled = false end
+local function SmoothBlackCleanup()
+    for _, v in pairs(Workspace:GetDescendants()) do
+        -- تنظيف كل المؤثرات البصرية
+        if v:IsA("ParticleEmitter") or v:IsA("Beam") or v:IsA("Trail") or v:IsA("Sparkles") or v:IsA("Smoke") or v:IsA("Fire") then
+            v.Enabled = false
+            pcall(function() v:Destroy() end)
+        
+        -- تنظيف الـ Attachments المرتبطة بالمؤثرات
+        elseif v:IsA("Attachment") then
+            if v:FindFirstChildOfClass("ParticleEmitter") or v:FindFirstChildOfClass("Beam") or v:FindFirstChildOfClass("Trail") then
+                pcall(function() v:Destroy() end)
+            end
+        
+        -- إخفاء الديكورات والTextures
+        elseif v:IsA("Decal") or v:IsA("Texture") then
+            if v.Parent and not v.Parent.Name:lower():find("ball") then
+                v.Transparency = 1
+                pcall(function() v:Destroy() end)
+            end
+        
+        -- إخفاء الأجزاء الثقيلة في الحلبة
+        elseif v:IsA("BasePart") or v:IsA("MeshPart") or v:IsA("UnionOperation") then
+            local name = v.Name:lower()
+            if name:find("pillar") or name:find("column") or name:find("rock") or name:find("deco") or name:find("statue") or 
+               name:find("fence") or name:find("building") or name:find("tree") or name:find("mountain") or name:find("extra") then
+                v.Transparency = 1
+                v.CanCollide = false
+                v.CastShadow = false
+            end
+            v.CastShadow = false
+            if v:IsA("MeshPart") then
+                v.RenderFidelity = Enum.RenderFidelity.Performance
+            end
         end
     end
 end
 
-CleanMap()
+-- تنظيف أولي
+SmoothBlackCleanup()
 
--- 3. تنظيف مستمر (كل 3 ثواني)
-RunService.Heartbeat:Connect(function()
-    if tick() % 3 < 0.1 then
-        CleanMap()
+-- تنظيف مستمر سلس كل 1.5 ثانية (هذا هو الجزء المهم في Smooth Black)
+task.spawn(function()
+    while true do
+        SmoothBlackCleanup()
+        task.wait(1.5)   -- يمكن تغييره إلى 1 لتنظيف أسرع أو 2 لتوفير أكثر
     end
 end)
 
--- 4. Extra FPS Boost (خاصة Blade Ball)
-pcall(function()
-    settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-    game:GetService("Players").LocalPlayer.DevEnableMouseLock = false
-end)
+-- إعدادات إضافية للسلاسة
+settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+if workspace:FindFirstChild("Terrain") then
+    workspace.Terrain.WaterWaveSize = 0
+    workspace.Terrain.WaterWaveSpeed = 0
+    workspace.Terrain.WaterReflectance = 0
+    workspace.Terrain.WaterTransparency = 1
+end
 
--- رسالة نهائية واضحة
-game:GetService("StarterGui"):SetCore("SendNotification", {
-    Title = "✅ Super Anti Lag",
-    Text = "مفعل بنجاح! اللاج انخفض + FPS ارتفع\n(مخصص Blade Ball)",
-    Duration = 8,
-    Icon = "rbxassetid://4483362458"
-})
-
-print("🚀 Super Anti Lag Blade Ball شغال 100% - استمتع!")
+print("✅ Smooth Black Anti Lag مفعل بنجاح!")
+print("اللعبة الآن تنظف نفسها تلقائياً كل 1.5 ثانية → FPS أعلى وسلاسة أفضل")
