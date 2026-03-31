@@ -1,14 +1,12 @@
--- 🖤 Smooth Black Anti Lag 2026 - مخصص 100% لـ Blade Ball (محدث مارس 2026)
--- يحذف Particles + Trails + Beams + Shadows + كل الأجزاء الثقيلة في الأرينات الحالية
+-- 🖤 Minimal Super Anti Lag for Blade Ball - Mobile Delta 2026
+-- خفيف جدًا + تنظيف مرة واحدة فقط (ما يثقلش الهاتف)
 
 local ws = game:GetService("Workspace")
 local lighting = game:GetService("Lighting")
-local rs = game:GetService("RunService")
-local players = game:GetService("Players")
 
-print("🖤 Smooth Black Anti Lag 2026 (محدث) جاري التفعيل...")
+print("🖤 Minimal Anti Lag Mobile جاري التفعيل...")
 
--- إعدادات الإضاءة والظلال (أقوى نسخة)
+-- 1. إعدادات إضاءة خفيفة للموبايل
 lighting.GlobalShadows = false
 lighting.ShadowSoftness = 0
 lighting.Brightness = 3
@@ -17,79 +15,60 @@ lighting.FogEnd = 999999
 lighting.FogStart = 999999
 lighting.EnvironmentDiffuseScale = 0
 lighting.EnvironmentSpecularScale = 0
-lighting.Ambient = Color3.fromRGB(100, 100, 100)
+lighting.Ambient = Color3.fromRGB(90, 90, 90)
 
-local function SmoothBlackCleanup()
+-- 2. تنظيف مرة واحدة فقط (خفيف وسريع)
+local function MinimalCleanup()
     for _, obj in pairs(ws:GetDescendants()) do
-        pcall(function()
-            -- 1. تنظيف كل المؤثرات البصرية (الجديدة والقديمة)
-            if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Trail") or 
-               obj:IsA("Sparkles") or obj:IsA("Smoke") or obj:IsA("Fire") or 
-               obj:IsA("Explosion") then
-                obj.Enabled = false
-                obj:Destroy()
-            
-            -- 2. تنظيف الـ Attachments المرتبطة
-            elseif obj:IsA("Attachment") then
-                for _, child in pairs(obj:GetChildren()) do
-                    if child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail") then
-                        child.Enabled = false
-                        child:Destroy()
-                    end
-                end
-                obj:Destroy()
-            
-            -- 3. إخفاء الديكورات والـ Textures
-            elseif obj:IsA("Decal") or obj:IsA("Texture") then
-                if obj.Parent and not obj.Parent.Name:lower():find("ball") then
-                    obj.Transparency = 1
-                    obj:Destroy()
-                end
-            
-            -- 4. إخفاء الأجزاء الثقيلة في الأرينات (محدث 2026)
-            elseif obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
-                local name = obj.Name:lower()
-                local parentName = obj.Parent and obj.Parent.Name:lower() or ""
-                
-                -- قائمة شاملة لكل الأجزاء الثقيلة في المابات الحالية
-                if name:find("pillar") or name:find("column") or name:find("rock") or name:find("cabin") or 
-                   name:find("statue") or name:find("fence") or name:find("building") or name:find("tree") or 
-                   name:find("mountain") or name:find("deco") or name:find("extra") or name:find("wall") or 
-                   name:find("platform") or name:find("fallen") or name:find("floating") or 
-                   name:find("grass") or parentName:find("deco") or parentName:find("environment") then
-                    
-                    -- نحافظ على الأرضية والكرة والحلبة الأساسية
-                    if not name:find("floor") and not name:find("ground") and not name:find("arena") and 
-                       not name:find("ball") and not parentName:find("ball") then
-                        
-                        obj.Transparency = 1
-                        obj.CanCollide = false
-                        obj.CastShadow = false
-                    end
-                end
-                
-                -- تقليل الجودة على كل الميشات
-                obj.CastShadow = false
-                if obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
-                    obj.RenderFidelity = Enum.RenderFidelity.Performance
+        if obj:IsA("ParticleEmitter") or obj:IsA("Beam") or obj:IsA("Trail") or 
+           obj:IsA("Sparkles") or obj:IsA("Smoke") or obj:IsA("Fire") then
+            obj.Enabled = false
+            obj:Destroy()
+        
+        elseif obj:IsA("Attachment") then
+            for _, child in pairs(obj:GetChildren()) do
+                if child:IsA("ParticleEmitter") or child:IsA("Beam") or child:IsA("Trail") then
+                    child.Enabled = false
+                    child:Destroy()
                 end
             end
-        end)
+            obj:Destroy()
+        
+        elseif obj:IsA("Decal") or obj:IsA("Texture") then
+            if obj.Parent and not string.find(obj.Parent.Name:lower(), "ball") then
+                obj.Transparency = 1
+                obj:Destroy()
+            end
+        
+        elseif obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("UnionOperation") then
+            local name = obj.Name:lower()
+            local parent = obj.Parent and obj.Parent.Name:lower() or ""
+            
+            if name:find("pillar") or name:find("column") or name:find("rock") or name:find("cabin") or 
+               name:find("statue") or name:find("fence") or name:find("building") or name:find("tree") or 
+               name:find("mountain") or name:find("deco") or name:find("extra") or name:find("wall") or 
+               name:find("platform") or name:find("fallen") or name:find("floating") or name:find("grass") or 
+               parent:find("deco") or parent:find("environment") then
+                
+                if not name:find("floor") and not name:find("ground") and not name:find("arena") and 
+                   not name:find("ball") then
+                    obj.Transparency = 1
+                    obj.CanCollide = false
+                    obj.CastShadow = false
+                end
+            end
+            obj.CastShadow = false
+            if obj:IsA("MeshPart") then
+                obj.RenderFidelity = Enum.RenderFidelity.Performance
+            end
+        end
     end
 end
 
--- تنظيف أولي قوي
-SmoothBlackCleanup()
+-- تنفيذ التنظيف مرة واحدة فقط
+MinimalCleanup()
 
--- تنظيف مستمر سلس كل 1 ثانية (Smooth Black Style)
-task.spawn(function()
-    while true do
-        SmoothBlackCleanup()
-        task.wait(1)
-    end
-end)
-
--- إعدادات إضافية لتوفير FPS (Terrain + Rendering)
+-- إعدادات Roblox للموبايل
 settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
 
 if ws:FindFirstChild("Terrain") then
@@ -100,6 +79,5 @@ if ws:FindFirstChild("Terrain") then
     t.WaterTransparency = 1
 end
 
-print("✅ Smooth Black Anti Lag 2026 مفعل بنجاح!")
-print("✅ ينظف كل ثانية + حذف دقيق للأجزاء الثقيلة في الأرينات الحالية")
-print("جرب العب مباراة كاملة ولاحظ الفرق")
+print("✅ Minimal Anti Lag Mobile مفعل بنجاح!")
+print("جرب العب مباراة كاملة ولاحظ الفرق من أول ثانية")
